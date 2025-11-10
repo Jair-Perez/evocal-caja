@@ -3,18 +3,19 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Caja eVocal Studio — PRO v4</title>
-<!-- dayjs para format de fechas -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.7/dayjs.min.js"></script>
+<title>eVocal Caja — Firestore (movimientos / ventas / cierres)</title>
+
+<!-- Firebase compat -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
 <style>
 :root{
   --paper-width:72mm;
-  --header-bg:#071022;
-  --tab-bg:#0b1220;
-  --page-bg:#f6f7f9;
+  --bg:#f8fafc;
   --card:#ffffff;
   --muted:#6b7280;
-  --accent:#0f1724;
+  --accent:#0b1720;
   --primary:#0b84ff;
   --danger:#dc2626;
   --border:#e6e9ee;
@@ -23,16 +24,16 @@
   font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif;
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--page-bg);color:var(--accent);font-size:14px}
-.header{background:var(--header-bg);color:#fff;padding:18px var(--pad);display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.04)}
-.brand{font-weight:800;font-size:20px;letter-spacing:0.4px}
-.header .meta{color:rgba(255,255,255,0.75);font-size:13px}
+body{margin:0;background:var(--bg);color:var(--accent);font-size:14px}
+.header{background:var(--card);border-bottom:1px solid var(--border);padding:16px var(--pad);display:flex;justify-content:space-between;align-items:center}
+.brand{font-weight:800;font-size:18px}
+.header .meta{color:var(--muted);font-size:13px}
 .container{max-width:1100px;margin:18px auto;padding:0 var(--pad)}
-.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;background:var(--tab-bg);padding:10px;border-radius:12px}
-.tab{background:transparent;border:1px solid transparent;padding:8px 12px;border-radius:999px;cursor:pointer;color:#fff;font-weight:700}
-.tab.active{background:var(--card);color:var(--accent);border-color:var(--border)}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.tab{background:var(--card);border:1px solid var(--border);padding:8px 12px;border-radius:999px;cursor:pointer;color:var(--muted);font-weight:700}
+.tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 .grid{display:grid;grid-template-columns:1fr 380px;gap:16px}
-.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:0 6px 18px rgba(2,6,23,0.06)}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:0 4px 14px rgba(2,6,23,0.03)}
 .section-title{font-weight:800;margin-bottom:10px;color:var(--accent);font-size:15px}
 input,select,textarea{width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--accent)}
 .button{padding:10px 12px;border-radius:10px;border:0;background:var(--primary);color:#fff;cursor:pointer;font-weight:800}
@@ -41,9 +42,10 @@ input,select,textarea{width:100%;padding:10px;border:1px solid var(--border);bor
 .mov-list{max-height:360px;overflow:auto;border-radius:8px;border:1px solid var(--border);padding:8px;background:#fff}
 .mov-row{display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px dashed var(--border)}
 .mov-head{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;font-weight:800;border-bottom:1px solid var(--border);margin-bottom:8px;color:var(--accent)}
-.ticket{width:var(--paper-width);background:#fff;padding:14px;margin:14px auto;border-radius:8px;border:1px solid #ddd;font-family:Arial,Helvetica,sans-serif}
+.ticket{width:var(--paper-width);background:#fff;padding:16px;margin:14px auto;border-radius:8px;border:1px solid #ddd;font-family:Arial,Helvetica,sans-serif}
 .ticket *{color:#000}
-.dots{text-align:center;color:#444;letter-spacing:1px;margin:8px 0;font-size:12px}
+.dots{text-align:center;color:#444;letter-spacing:1px;margin:10px 0;font-size:12px}
+.footer-legal{font-size:9px;color:#444;white-space:pre-wrap;margin-top:10px}
 @media print{
   body{background:transparent}
   .tabs,.header,.container .card .button,.link-btn,.users-list,.mov-list{display:none}
@@ -76,6 +78,7 @@ input,select,textarea{width:100%;padding:10px;border:1px solid var(--border);bor
       <div class="tab" data-tab="history" style="display:none">Historial / Cierres</div>
     </div>
 
+    <!-- ACCESS -->
     <div class="card" id="tab-access">
       <div class="section-title">Acceso / Abrir turno</div>
       <div class="grid">
@@ -86,6 +89,7 @@ input,select,textarea{width:100%;padding:10px;border:1px solid var(--border);bor
             <button class="button" id="btnLogin">Entrar / Abrir turno</button>
             <button class="link-btn" onclick="simulateTime()">Simular hora</button>
             <button class="link-btn" onclick="goToForgot()">Olvidé PIN</button>
+            <button class="link-btn" onclick="resetGeneral()">Reset general</button>
           </div>
           <div class="small-muted" style="margin-top:8px">Al abrir la caja se cargará el monto entregado por el turno anterior (si existe) para la conciliación.</div>
         </div>
@@ -101,6 +105,7 @@ input,select,textarea{width:100%;padding:10px;border:1px solid var(--border);bor
       </div>
     </div>
 
+    <!-- MAIN -->
     <div style="margin-top:14px" class="grid">
       <div>
         <div class="card" id="tab-cash" style="display:none">
@@ -109,6 +114,7 @@ input,select,textarea{width:100%;padding:10px;border:1px solid var(--border);bor
             <div style="flex:1;min-width:220px">
               <label>Tipo</label>
               <select id="movTipo"><option value="ingreso">Ingreso</option><option value="egreso">Egreso</option></select>
+
               <label style="margin-top:8px">Concepto</label>
               <select id="movConcepto">
                 <option>Reembolso</option>
@@ -119,6 +125,7 @@ input,select,textarea{width:100%;padding:10px;border:1px solid var(--border);bor
               <input type="text" id="movConceptoCustom" style="display:none" placeholder="Especifica concepto">
               <div class="small-muted" style="margin-top:10px" id="previousDeliveredNote"></div>
             </div>
+
             <div style="flex:1;min-width:220px">
               <label>Monto ($)</label>
               <input type="number" id="movMonto" step="0.01" placeholder="0.00">
@@ -137,6 +144,7 @@ input,select,textarea{width:100%;padding:10px;border:1px solid var(--border);bor
               <div class="small-muted">Concepto ···· Monto</div>
             </div>
             <div class="mov-list" id="movementsList"><em>Sin movimientos</em></div>
+
             <div style="margin-top:10px">
               <div style="display:flex;justify-content:space-between;padding:8px 0;border-top:1px dashed var(--border)"><div>Total efectivo</div><div id="sumEfectivo">$0.00</div></div>
               <div style="display:flex;justify-content:space-between;padding:8px 0"><div><strong>Total ingresos</strong></div><div id="sumIngresos">$0.00</div></div>
@@ -160,8 +168,8 @@ input,select,textarea{width:100%;padding:10px;border:1px solid var(--border);bor
               <div style="width:160px"><label>Descuento ($)</label><input type="number" id="ventaDescuento" step="0.01" value="0"></div>
             </div>
             <div style="display:flex;gap:8px">
-              <button class="button" onclick="registerSale({printOnly:false})">Registrar venta e imprimir (Efectivo)</button>
-              <button class="button" onclick="registerSale({printOnly:true, card:true})">Venta con tarjeta (solo imprimir)</button>
+              <button class="button" onclick="registerSale({printOnly:false, card:false})">Registrar e imprimir (Efectivo)</button>
+              <button class="button" onclick="registerSale({printOnly:false, card:true})">Registrar e imprimir (Tarjeta)</button>
               <button class="link-btn" onclick="clearSaleForm()">Limpiar</button>
             </div>
             <div class="small-muted">El monto ingresado incluye IVA (16%). El descuento se aplica sobre la base antes de IVA.</div>
@@ -245,14 +253,13 @@ input,select,textarea{width:100%;padding:10px;border:1px solid var(--border);bor
           <div id="turnHistory" class="mov-list"></div>
           <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
             <button class="button" onclick="exportDailyReport()">Reporte diario (imprimible)</button>
-            <button class="button" onclick="exportMonthlyReport()">Reporte mensual (totales)</button>
-            <button class="button" onclick="exportAnnualReport()">Reporte anual (totales)</button>
+            <button class="button" onclick="exportMonthlyReport()">Reporte mensual</button>
+            <button class="button" onclick="exportAnnualReport()">Reporte anual</button>
             <button class="link-btn" onclick="printTicket()">Imprimir ticket (72 mm)</button>
             <button class="link-btn" onclick="closeTurn()">Cerrar turno</button>
             <button class="link-btn" onclick="exportCSV()">Exportar CSV</button>
             <button class="link-btn" onclick="closeMonthly()">Cierre mensual</button>
             <button class="link-btn" onclick="closeAnnual()">Cierre anual (23 Dic)</button>
-            <button class="link-btn" onclick="resetGeneral()">Reset general (borrar movimientos y cierres)</button>
           </div>
           <div class="small-muted" style="margin-top:8px">Al cerrar un turno se guardará el monto final entregado y la Caja / Calculadora quedarán bloqueadas hasta nuevo turno.</div>
         </div>
@@ -261,43 +268,64 @@ input,select,textarea{width:100%;padding:10px;border:1px solid var(--border);bor
   </div>
 
 <script>
-/* ========== Storage + util ========= */
-const DB = {
-  usersKey:'caja_v4_users',
-  turnsKey:'caja_v4_turns',
-  movesKey:'caja_v4_moves',
-  denomKey:'caja_v4_denoms',
-  resetReqKey:'caja_v4_reset',
-  monthlyKey:'caja_v4_monthly',
-  annualKey:'caja_v4_annual',
-  salesKey:'caja_v4_sales'
+/* ===========================
+   FIREBASE CONFIG
+   =========================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyDtMNrHgn9rK329qMNVWoj7TDVJ-RdtYnQ",
+  authDomain: "evocal-caja.firebaseapp.com",
+  projectId: "evocal-caja",
+  storageBucket: "evocal-caja.firebasestorage.app",
+  messagingSenderId: "640392902121",
+  appId: "1:640392902121:web:a586ae422a0a908b1c0778"
 };
-function save(k,v){ localStorage.setItem(k, JSON.stringify(v)); }
-function load(k){ try{ return JSON.parse(localStorage.getItem(k)) || null } catch(e){ return null } }
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+/* ===========================
+   Local keys + helpers
+   =========================== */
+const LS = {
+  users:'evoc_users',
+  turns:'evoc_turns',
+  moves:'evoc_moves',
+  denoms:'evoc_denoms',
+  resetReq:'evoc_reset',
+  monthly:'evoc_monthly',
+  annual:'evoc_annual',
+  sales:'evoc_sales'
+};
+function saveLS(k,v){ localStorage.setItem(k, JSON.stringify(v)); }
+function loadLS(k){ try{ return JSON.parse(localStorage.getItem(k)) || []; }catch(e){ return []; } }
 function uid(pref='id'){ return pref + '_' + Math.random().toString(36).slice(2,9) }
 function money(n){ return "$" + Number(n||0).toLocaleString('es-MX',{minimumFractionDigits:2, maximumFractionDigits:2}) }
 function now(){ return new Date(); }
-function formatShort(d){ try{return dayjs(d).format('DD/MM/YYYY')}catch(e){const D=new Date(d);return `${String(D.getDate()).padStart(2,'0')}/${String(D.getMonth()+1).padStart(2,'0')}/${D.getFullYear()}` } }
-function formatTime(d){ try{return dayjs(d).format('HH:mm:ss')}catch(e){const D=new Date(d);return `${String(D.getHours()).padStart(2,'0')}:${String(D.getMinutes()).padStart(2,'0')}:${String(D.getSeconds()).padStart(2,'0')}`} }
+function fmtShort(d){ const D=new Date(d); return `${String(D.getDate()).padStart(2,'0')}/${String(D.getMonth()+1).padStart(2,'0')}/${D.getFullYear()}` }
+function fmtTime(d){ const D=new Date(d); return `${String(D.getHours()).padStart(2,'0')}:${String(D.getMinutes()).padStart(2,'0')}:${String(D.getSeconds()).padStart(2,'0')}` }
 
-/* seed defaults */
-(function ensureDefaults(){
-  if(!load(DB.usersKey)){
-    const users=[];
-    users.push({id:uid('u'), name:'Jair Pérez', roles:['encargado','frontdesk','direccion'], pin:'2831'});
-    users.push({id:uid('u'), name:'Dirección', roles:['direccion'], pin:'9999'});
-    save(DB.usersKey, users);
+/* ===========================
+   Seed defaults
+   =========================== */
+(function seed(){
+  if(!localStorage.getItem(LS.users)){
+    const u = [
+      {id:uid('u'), name:'Jair Pérez', roles:['encargado','frontdesk','direccion'], pin:'2831'},
+      {id:uid('u'), name:'Dirección', roles:['direccion'], pin:'9999'}
+    ];
+    saveLS(LS.users, u);
   }
-  if(!load(DB.turnsKey)) save(DB.turnsKey, []);
-  if(!load(DB.movesKey)) save(DB.movesKey, []);
-  if(!load(DB.denomKey)) save(DB.denomKey, {});
-  if(!load(DB.resetReqKey)) save(DB.resetReqKey, []);
-  if(!load(DB.monthlyKey)) save(DB.monthlyKey, []);
-  if(!load(DB.annualKey)) save(DB.annualKey, []);
-  if(!load(DB.salesKey)) save(DB.salesKey, []);
+  if(!localStorage.getItem(LS.turns)) saveLS(LS.turns, []);
+  if(!localStorage.getItem(LS.moves)) saveLS(LS.moves, []);
+  if(!localStorage.getItem(LS.sales)) saveLS(LS.sales, []);
+  if(!localStorage.getItem(LS.denom)) saveLS(LS.denom, {});
+  if(!localStorage.getItem(LS.monthly)) saveLS(LS.monthly, []);
+  if(!localStorage.getItem(LS.annual)) saveLS(LS.annual, []);
+  if(!localStorage.getItem(LS.resetReq)) saveLS(LS.resetReq, []);
 })();
 
-/* ========= session & shifts ========= */
+/* ===========================
+   Session & shifts
+   =========================== */
 let session = null;
 function detectShift(dt=new Date()){
   const h = dt.getHours();
@@ -306,13 +334,15 @@ function detectShift(dt=new Date()){
   return null;
 }
 function createTurnId(d, turno){
-  const dd=String(d.getDate()).padStart(2,'0'); const mm=String(d.getMonth()+1).padStart(2,'0'); const yyyy=d.getFullYear(); const suf = turno==='M' ? 'MAT' : 'VES'; return `${dd}${mm}${yyyy}${suf}`;
+  const dd=String(d.getDate()).padStart(2,'0'); const mm=String(d.getMonth()+1).padStart(2,'0'); const yyyy=d.getFullYear(); const suf = turno==='M'?'MAT':'VES'; return `${dd}${mm}${yyyy}${suf}`;
 }
-function displayShift(){ const s=detectShift(); document.getElementById('detectedShift').textContent = s==='M' ? 'Matutino' : (s==='V' ? 'Vespertino' : 'Fuera de horario'); document.getElementById('currentShiftDisplay').textContent = `Hora: ${formatShort(now())} ${formatTime(now())}`; updateCountdown(); }
+function displayShift(){ const s=detectShift(new Date()); document.getElementById('detectedShift').textContent = s==='M' ? 'Matutino' : (s==='V' ? 'Vespertino' : 'Fuera de horario'); document.getElementById('currentShiftDisplay').textContent = `Hora: ${fmtShort(new Date())} ${fmtTime(new Date())}`; updateCountdown(); }
 displayShift();
-setInterval(()=>displayShift(),1000);
+setInterval(displayShift,1000);
 
-/* ========== tabs ========== */
+/* ===========================
+   Tabs
+   =========================== */
 const tabs = document.querySelectorAll('.tab');
 tabs.forEach(t=>t.addEventListener('click', ()=> {
   tabs.forEach(x=>x.classList.remove('active'));
@@ -328,12 +358,18 @@ tabs.forEach(t=>t.addEventListener('click', ()=> {
   refreshAll();
 }));
 
-/* ========== login / open turn ========== */
-document.getElementById('pinLogin').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); handleLogin(); }});
+/* ===========================
+   Login (Enter) + open turn
+   =========================== */
+document.getElementById('pinLogin').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); handleLogin(); }});
 document.getElementById('btnLogin').addEventListener('click', handleLogin);
-function findUserByPin(pin){ const users = load(DB.usersKey)||[]; return users.find(u=>u.pin===pin) || null; }
 
-function handleLogin(){
+function findUserByPin(pin){
+  const users = loadLS(LS.users)||[];
+  return users.find(u=>u.pin===pin) || null;
+}
+
+async function handleLogin(){
   const pin = document.getElementById('pinLogin').value.trim();
   if(!pin) return alert('Ingresa PIN.');
   const user = findUserByPin(pin);
@@ -345,11 +381,11 @@ function handleLogin(){
   let shift = detectShift(new Date());
   if(!shift) shift = document.getElementById('manualTurno').value; else document.getElementById('manualTurno').value = shift;
 
-  const turns = load(DB.turnsKey) || [];
+  const turns = loadLS(LS.turns)||[];
   const open = turns.find(t=>t.status==='open');
   if(open){
     session.turnId = open.id;
-    session.canOperate = (open.encargadoId === session.userId) || session.roles.includes('direccion') || session.roles.includes('encargado') || session.name==='Jair Pérez';
+    session.canOperate = (open.encargadoId === session.userId) || session.roles.includes('encargado') || session.roles.includes('direccion') || session.name==='Jair Pérez';
     showTabsAfterOpen();
     updateUIForSession(); refreshAll();
     return;
@@ -358,16 +394,20 @@ function handleLogin(){
   const prev = turns.slice().reverse().find(t=>t.status==='closed');
   const prevDelivered = prev ? (prev.closedDelivered ?? null) : null;
   const newTurn = { id: createTurnId(new Date(), shift), date: new Date().toISOString(), shift, encargadoId: session.userId, encargadoName: session.name, status:'open', openedAt: new Date().toISOString(), previousDelivered: prevDelivered };
-  turns.push(newTurn); save(DB.turnsKey, turns);
+  turns.push(newTurn); saveLS(LS.turns, turns);
+
+  // push to firestore collection "cierres" as open turn record (document id = turn.id)
+  try{ await db.collection('cierres').doc(newTurn.id).set(newTurn); }catch(e){ console.warn('No se pudo escribir turno en Firestore (queda en local).', e); }
+
   session.turnId = newTurn.id; session.canOperate = true;
   showTabsAfterOpen();
   updateUIForSession(); refreshAll();
 }
+
 function showTabsAfterOpen(){
   document.querySelectorAll('.tab').forEach(t=>{ if(t.dataset.tab!=='access') t.style.display = ''; });
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  const tabCash = document.querySelector('.tab[data-tab="cash"]');
-  tabCash.classList.add('active');
+  document.querySelector('.tab[data-tab="cash"]').classList.add('active');
   document.getElementById('tab-access').style.display='none';
   document.getElementById('tab-cash').style.display='';
   document.getElementById('tab-venta').style.display='';
@@ -377,29 +417,43 @@ function showTabsAfterOpen(){
 }
 function logout(){ session=null; document.getElementById('userDisplay').textContent='No autenticado'; document.getElementById('sessionActions').innerHTML=''; updateUIForSession(); }
 
-/* ========== movements ========== */
+/* ===========================
+   Movements: save to Firestore 'movimientos' + local
+   =========================== */
 function clearMovementForm(){ document.getElementById('movMonto').value=''; document.getElementById('movNota').value=''; document.getElementById('movConceptoCustom').value=''; document.getElementById('movConceptoCustom').style.display='none'; document.getElementById('customConceptLabel').style.display='none'; document.getElementById('movConcepto').value='Reembolso'; document.getElementById('movTipo').value='ingreso'; }
 document.getElementById('movConcepto').addEventListener('change', (e)=>{ if(e.target.value==='Otro'){ document.getElementById('movConceptoCustom').style.display=''; document.getElementById('customConceptLabel').style.display=''; } else { document.getElementById('movConceptoCustom').style.display='none'; document.getElementById('customConceptLabel').style.display='none' } });
 
-function addMovement(){
+async function addMovement(){
   if(!session || !session.turnId) return alert('Debes iniciar sesión y tener un turno abierto.');
   const tipo = document.getElementById('movTipo').value;
   let concepto = document.getElementById('movConcepto').value;
-  if(concepto==='Otro'){ const c = document.getElementById('movConceptoCustom').value.trim(); if(!c) return alert('Escribe el concepto personalizado.'); concepto = c; }
+  let protectedFlag = false;
+  if(concepto==='Otro'){ const c=document.getElementById('movConceptoCustom').value.trim(); if(!c) return alert('Escribe el concepto personalizado.'); concepto=c; protectedFlag=true; alert('⚠️ Movimiento "Otro": solo podrá editarse, no eliminarse.'); }
   const monto = parseFloat(document.getElementById('movMonto').value) || 0;
   if(monto<=0) return alert('Monto inválido.');
   const nota = document.getElementById('movNota').value.trim();
-  const protectedFlag = (document.getElementById('movConcepto').value==='Otro');
-  if(protectedFlag) alert('⚠️ Atención: movimiento "Otro" no podrá eliminarse; solo editarse.');
   const move = { id: uid('m'), turnoId: session.turnId, createdBy: session.userId, creatorName: session.name, tipo, metodo:'efectivo', concepto, nota, monto, createdAt: new Date().toISOString(), protected: protectedFlag };
-  const moves = load(DB.movesKey) || []; moves.push(move); save(DB.movesKey, moves); clearMovementForm(); refreshMovements(); refreshTurnHistory();
+
+  // save local
+  const movesLocal = loadLS(LS.moves) || []; movesLocal.push(move); saveLS(LS.moves, movesLocal);
+
+  // save cloud
+  try{
+    await db.collection('movimientos').doc(move.id).set(move);
+    // mark local as synced
+    const updated = loadLS(LS.moves)||[]; const idx = updated.findIndex(x=>x.id===move.id); if(idx!==-1){ updated[idx].synced = true; saveLS(LS.moves, updated); }
+  }catch(e){
+    console.warn('No se pudo guardar movimiento en Firestore (offline).', e);
+  }
+
+  clearMovementForm(); refreshMovements(); refreshTurnHistory();
 }
 
+/* render movements with alignment: ingresos right, egresos left */
 function refreshMovements(){
-  const turn = (load(DB.turnsKey)||[]).find(t=>t.status==='open') || null;
-  const el = document.getElementById('movementsList');
+  const turns = loadLS(LS.turns)||[]; const turn = turns.find(t=>t.status==='open') || null; const el = document.getElementById('movementsList');
   if(!turn){ el.innerHTML='<em>No hay turno activo</em>'; updateSums(0,0,0,0); return; }
-  const moves = (load(DB.movesKey)||[]).filter(m=>m.turnoId===turn.id);
+  const moves = (loadLS(LS.moves)||[]).filter(m=>m.turnoId===turn.id);
   if(moves.length===0) el.innerHTML='<em>Sin movimientos</em>';
   else {
     el.innerHTML = moves.map(m=>{
@@ -411,43 +465,34 @@ function refreshMovements(){
     }).join('');
   }
   let sumEf=0,sumIng=0,sumEgr=0;
-  (load(DB.movesKey)||[]).filter(m=>m.turnoId===turn.id).forEach(m=>{ sumEf += (m.tipo==='ingreso'?m.monto:-m.monto); if(m.tipo==='ingreso') sumIng+=m.monto; if(m.tipo==='egreso') sumEgr+=m.monto; });
+  (loadLS(LS.moves)||[]).filter(m=>m.turnoId===turn.id).forEach(m=>{ sumEf += (m.tipo==='ingreso'?m.monto:-m.monto); if(m.tipo==='ingreso') sumIng+=m.monto; if(m.tipo==='egreso') sumEgr+=m.monto; });
   updateSums(sumEf,sumIng,sumEgr,sumIng - sumEgr);
 }
 
-function editMovement(id){ const moves = load(DB.movesKey)||[]; const m = moves.find(x=>x.id===id); if(!m) return alert('No encontrado.'); if(!(session && (session.userId===m.createdBy || session.name==='Jair Pérez' || (session.roles && session.roles.includes('direccion'))))) return alert('No tienes permiso para editar.'); const newMonto = parseFloat(prompt('Nuevo monto', m.monto)) || m.monto; const newNota = prompt('Nueva nota', m.nota || '') || m.nota; const newConcept = prompt('Nuevo concepto', m.concepto) || m.concepto; m.monto=newMonto; m.nota=newNota; m.concepto=newConcept; save(DB.movesKey, moves); refreshMovements(); refreshTurnHistory(); }
-function deleteMovement(id){ if(!confirm('Eliminar movimiento?')) return; const moves = load(DB.movesKey)||[]; const idx = moves.findIndex(x=>x.id===id); if(idx===-1) return alert('No encontrado.'); const m = moves[idx]; if(m.protected) return alert('Este movimiento fue marcado como "Otro" y no puede eliminarse. Solo puede editarse.'); if(!(session && (session.userId===m.createdBy || session.name==='Jair Pérez' || (session.roles && session.roles.includes('direccion'))))) return alert('No tienes permiso para eliminar.'); moves.splice(idx,1); save(DB.movesKey, moves); refreshMovements(); refreshTurnHistory(); }
-
-function updateSums(ef,ing,egr,balance){ document.getElementById('sumEfectivo').innerText = money(ef); document.getElementById('sumIngresos').innerText = money(ing); document.getElementById('sumEgresos').innerText = money(egr); document.getElementById('sumBalance').innerText = money(balance); }
-
-/* ========== denominations ========== */
-function calculateDenominations(){
-  const v1000 = parseInt(document.getElementById('d1000').value)||0;
-  const v500 = parseInt(document.getElementById('d500').value)||0;
-  const v200 = parseInt(document.getElementById('d200').value)||0;
-  const v100 = parseInt(document.getElementById('d100').value)||0;
-  const v50 = parseInt(document.getElementById('d50').value)||0;
-  const v20 = parseInt(document.getElementById('d20').value)||0;
-  const v10 = parseInt(document.getElementById('d10').value)||0;
-  const v5 = parseInt(document.getElementById('d5').value)||0;
-  const v2 = parseInt(document.getElementById('d2').value)||0;
-  const v1 = parseInt(document.getElementById('d1').value)||0;
-  const v050 = parseInt(document.getElementById('d050').value)||0;
-  const total = v1000*1000 + v500*500 + v200*200 + v100*100 + v50*50 + v20*20 + v10*10 + v5*5 + v2*2 + v1*1 + v050*0.5;
-  document.getElementById('totalCounted').innerText = money(total);
-  const turn = (load(DB.turnsKey)||[]).find(t=>t.status==='open');
-  let declared = 0;
-  if(turn){ const moves = (load(DB.movesKey)||[]).filter(m=>m.turnoId===turn.id); declared = moves.filter(m=>m.tipo==='ingreso').reduce((a,b)=>a+b.monto,0) - moves.filter(m=>m.tipo==='egreso').reduce((a,b)=>a+b.monto,0); }
-  document.getElementById('efectivoDeclarado').innerText = money(declared);
-  document.getElementById('diferenciaEfectivo').innerText = money(total - declared);
-  return total;
+function editMovement(id){
+  const moves = loadLS(LS.moves)||[]; const m = moves.find(x=>x.id===id); if(!m) return alert('No encontrado.'); if(!(session && (session.userId===m.createdBy || session.name==='Jair Pérez' || (session.roles && session.roles.includes('direccion'))))) return alert('No tienes permiso para editar.');
+  const newMonto = parseFloat(prompt('Nuevo monto', m.monto)) || m.monto;
+  const newNota = prompt('Nueva nota', m.nota || '') || m.nota;
+  const newConcept = prompt('Nuevo concepto', m.concepto) || m.concepto;
+  m.monto=newMonto; m.nota=newNota; m.concepto=newConcept; m.synced=false; saveLS(LS.moves, moves);
+  try{ db.collection('movimientos').doc(m.id).set(m); m.synced=true; saveLS(LS.moves, moves); }catch(e){}
+  refreshMovements(); refreshTurnHistory();
 }
-function saveDenominations(){ const turn = (load(DB.turnsKey)||[]).find(t=>t.status==='open'); if(!turn) return alert('No hay turno abierto.'); const total = calculateDenominations(); const denoms = load(DB.denomKey)||{}; denoms[turn.id] = { total, savedAt: new Date().toISOString(), by: session?session.name:'N/A' }; save(DB.denomKey, denoms); alert('Conteo guardado.'); }
+function deleteMovement(id){
+  if(!confirm('Eliminar movimiento?')) return;
+  const moves = loadLS(LS.moves)||[]; const idx = moves.findIndex(x=>x.id===id); if(idx===-1) return alert('No encontrado.'); const m = moves[idx]; if(m.protected) return alert('Este movimiento fue marcado como "Otro" y no puede eliminarse. Solo puede editarse.'); if(!(session && (session.userId===m.createdBy || session.name==='Jair Pérez' || (session.roles && session.roles.includes('direccion'))))) return alert('No tienes permiso para eliminar.');
+  moves.splice(idx,1); saveLS(LS.moves, moves);
+  try{ db.collection('movimientos').doc(id).delete().catch(()=>{}); }catch(e){}
+  refreshMovements(); refreshTurnHistory();
+}
 
-/* ========== sales (IVA incluido) ========== */
+/* ===========================
+   Sales: save to Firestore 'ventas' (card or cash).
+   Cash sales ALSO create a movimiento (ingreso).
+   =========================== */
 function clearSaleForm(){ document.getElementById('ventaCliente').value=''; document.getElementById('ventaMatricula').value=''; document.getElementById('ventaDescripcion').value=''; document.getElementById('ventaMonto').value=''; document.getElementById('ventaDescuento').value='0'; }
 
-function registerSale(opts){
+async function registerSale(opts){
   opts = opts || {};
   const client = document.getElementById('ventaCliente').value.trim();
   const matricula = document.getElementById('ventaMatricula').value.trim();
@@ -457,33 +502,70 @@ function registerSale(opts){
   if(!client) return alert('Ingresa el nombre del alumno/cliente.');
   if(montoWithIva <= 0) return alert('Monto inválido.');
 
-  // Calculate base and IVA considering montoWithIva is total including IVA.
+  // base from total including IVA
   const baseOriginal = parseFloat((montoWithIva / 1.16).toFixed(2));
-  // Apply discount (pesos) to base (discount before IVA)
   const baseAfterDiscount = Math.max(0, parseFloat((baseOriginal - descuento).toFixed(2)));
   const iva = parseFloat((baseAfterDiscount * 0.16).toFixed(2));
   const total = parseFloat((baseAfterDiscount + iva).toFixed(2));
 
-  // id compra DDMMAAAA-HHMMSS
-  const nowD = new Date(); const dd=String(nowD.getDate()).padStart(2,'0'); const mm=String(nowD.getMonth()+1).padStart(2,'0'); const yyyy=nowD.getFullYear(); const hh=String(nowD.getHours()).padStart(2,'0'); const min=String(nowD.getMinutes()).padStart(2,'0'); const ss=String(nowD.getSeconds()).padStart(2,'0'); const idCompra = `${dd}${mm}${yyyy}-${hh}${min}${ss}`;
+  const nowD = new Date(); const dd=String(nowD.getDate()).padStart(2,'0'); const mm=String(nowD.getMonth()+1).padStart(2,'0'); const yyyy=nowD.getFullYear(); const hh=String(nowD.getHours()).padStart(2,'0'); const min=String(nowD.getMinutes()).padStart(2,'0'); const ss=String(nowD.getSeconds()).padStart(2,'0');
+  const idCompra = `${dd}${mm}${yyyy}-${hh}${min}${ss}`;
 
+  const sale = {
+    id: idCompra,
+    cliente: client,
+    matricula,
+    descripcion: desc,
+    montoWithIva,
+    descuento,
+    base: baseAfterDiscount,
+    iva,
+    total,
+    paymentMethod: opts.card ? 'tarjeta' : 'efectivo',
+    createdAt: new Date().toISOString(),
+    usuario: session ? session.name : '-',
+    turno: session ? session.turnId : '-'
+  };
+
+  // save local
+  const salesLocal = loadLS(LS.sales)||[]; salesLocal.push(sale); saveLS(LS.sales, salesLocal);
+
+  // save cloud
+  try{ await db.collection('ventas').doc(sale.id).set(sale); }catch(e){ console.warn('No se pudo guardar venta en Firestore (offline).', e); }
+
+  // if cash: also create movimiento (ingreso) to movimientos
+  if(!opts.card){
+    if(!session || !session.turnId) return alert('Debes tener un turno abierto para registrar venta en efectivo.');
+    const move = { id: uid('m'), turnoId: session.turnId, createdBy: session.userId, creatorName: session.name, tipo: 'ingreso', metodo:'efectivo', concepto: desc, nota:`Venta - ${client} - Mat: ${matricula||'-'}`, monto: total, createdAt: new Date().toISOString(), protected:false };
+    const movesLocal = loadLS(LS.moves)||[]; movesLocal.push(move); saveLS(LS.moves, movesLocal);
+    try{ await db.collection('movimientos').doc(move.id).set(move); }catch(e){ console.warn('No se pudo guardar movimiento de venta en Firestore.'); }
+    refreshMovements(); refreshTurnHistory();
+  }
+
+  // print ticket for sale
+  printSaleTicket(sale);
+  clearSaleForm();
+}
+
+/* sale ticket */
+function printSaleTicket(sale){
   const ticketHtml = `
     <div class="ticket" style="width:270px;padding:16px;font-family:Arial,Helvetica,sans-serif;">
       <div style="text-align:center;font-weight:800;font-size:15px">eVocal Studio</div>
-      <div style="text-align:center;font-size:12px;margin-top:6px">${opts.card ? 'Comprobante de Pago - Tarjeta' : 'Comprobante de Pago - Efectivo'}</div>
+      <div style="text-align:center;font-size:12px;margin-top:6px">Comprobante de Pago — ${sale.paymentMethod === 'tarjeta' ? 'Tarjeta' : 'Efectivo'}</div>
       <div class="dots">........................................</div>
-      <div style="font-size:13px">Alumno: <strong>${client}</strong></div>
-      <div style="font-size:13px">Matrícula: <strong>${matricula || '-'}</strong></div>
-      <div style="font-size:13px">Atendido por: <strong>${session?session.name:'-'}</strong></div>
-      <div style="font-size:13px">Fecha: <strong>${formatShort(nowD)} - ${formatTime(nowD)}</strong></div>
-      <div style="font-size:13px">ID Compra: <strong>${idCompra}</strong></div>
+      <div style="font-size:13px">Alumno: <strong>${sale.cliente}</strong></div>
+      <div style="font-size:13px">Matrícula: <strong>${sale.matricula || '-'}</strong></div>
+      <div style="font-size:13px">Atendido por: <strong>${sale.usuario || '-'}</strong></div>
+      <div style="font-size:13px">Fecha: <strong>${fmtShort(sale.createdAt)} ${fmtTime(sale.createdAt)}</strong></div>
+      <div style="font-size:13px">ID Compra: <strong>${sale.id}</strong></div>
       <div class="dots">........................................</div>
-      <div style="font-size:13px">Descripción: <strong>${desc}</strong></div>
+      <div style="font-size:13px">Descripción: <strong>${sale.descripcion}</strong></div>
       <div style="border-top:1px dashed #ddd;margin-top:8px;padding-top:8px">
-        <div style="display:flex;justify-content:space-between;padding:6px 0"><div>Venta neta</div><div>${money(baseAfterDiscount)}</div></div>
-        <div style="display:flex;justify-content:space-between;padding:6px 0"><div>Descuento</div><div>${money(descuento)}</div></div>
-        <div style="display:flex;justify-content:space-between;padding:6px 0"><div>IVA (16%)</div><div>${money(iva)}</div></div>
-        <div style="border-top:1px solid #000;margin-top:8px;padding-top:8px;display:flex;justify-content:space-between;font-weight:800"><div>TOTAL</div><div>${money(total)}</div></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0"><div>Venta neta</div><div>${money(sale.base)}</div></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0"><div>Descuento</div><div>${money(sale.descuento)}</div></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0"><div>IVA (16%)</div><div>${money(sale.iva)}</div></div>
+        <div style="border-top:1px solid #000;margin-top:8px;padding-top:8px;display:flex;justify-content:space-between;font-weight:800"><div>TOTAL</div><div>${money(sale.total)}</div></div>
       </div>
       <div class="dots" style="margin-top:10px">........................................</div>
       <div style="font-size:10px;color:#444;white-space:pre-wrap">Comprobante válido por el pago en efectivo. En caso de requerir factura, envíe sus datos a: info@evocalstudio.com</div>
@@ -491,69 +573,89 @@ function registerSale(opts){
       <div style="text-align:center;font-size:11px;color:#444">eVocal Studio</div>
     </div>
   `;
-
-  if(!opts.printOnly){
-    const turn = (load(DB.turnsKey)||[]).find(t=>t.status==='open');
-    if(!turn) return alert('Debes iniciar sesión y tener un turno abierto para registrar ventas en efectivo.');
-    // Save movement using the computed total
-    const move = { id: uid('m'), turnoId: turn.id, createdBy: session.userId, creatorName: session.name, tipo:'ingreso', metodo:'efectivo', concepto: desc, nota:`Venta - ${client} - Mat: ${matricula||'-'}`, monto: total, createdAt: new Date().toISOString(), protected:false };
-    const moves = load(DB.movesKey)||[]; moves.push(move); save(DB.movesKey, moves);
-    // Save sale record
-    const sales = load(DB.salesKey)||[]; sales.push({id:idCompra, cliente:client, matricula, descripcion:desc, montoWithIva: montoWithIva, descuento, base: baseAfterDiscount, iva, total, createdAt:new Date().toISOString(), usuario: session?session.name:'-', turno: turn.id}); save(DB.salesKey, sales);
-    refreshMovements(); refreshTurnHistory();
-  }
-
   const w = window.open('','saleTicket'); w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Ticket venta</title><style>body{font-family:Arial;margin:0;padding:8px}.ticket{width:270px;padding:12px}.dots{text-align:center;color:#666;letter-spacing:1px;margin:8px 0}</style></head><body>');
   w.document.write(ticketHtml); w.document.close(); setTimeout(()=>w.print(),400);
-  if(!opts.printOnly) clearSaleForm();
 }
 
-/* ========== printing cierre ticket ========== */
+/* ===========================
+   Close turn & print (cierres collection)
+   =========================== */
+async function closeTurn(){
+  const turns = loadLS(LS.turns)||[]; const turn = turns.find(t=>t.status==='open'); if(!turn) return alert('No hay turno abierto.');
+  const isOwner = session && session.userId === turn.encargadoId;
+  if(!isOwner){
+    const pin = prompt('PIN de Encargado/Dirección:'); if(!pin) return; const auth = findUserByPin(pin); if(!auth || !(auth.roles.includes('encargado')||auth.roles.includes('direccion')||auth.name==='Jair Pérez')) return alert('PIN inválido.');
+  } else if(!confirm('¿Deseas cerrar tu turno?')) return;
+
+  const denoms = loadLS(LS.denom)||{}; const denomInfo = denoms[turn.id] || null;
+  let finalDelivered = denomInfo ? denomInfo.total : null;
+  if(finalDelivered===null){
+    const moves = (loadLS(LS.moves)||[]).filter(m=>m.turnoId===turn.id);
+    finalDelivered = moves.filter(m=>m.tipo==='ingreso').reduce((a,b)=>a+b.monto,0) - moves.filter(m=>m.tipo==='egreso').reduce((a,b)=>a+b.monto,0);
+  }
+  const t = turns.find(x=>x.id===turn.id); t.status='closed'; t.closedAt=new Date().toISOString(); t.closedBy=session?session.name:'Sistema'; t.closedDelivered=finalDelivered; saveLS(LS.turns, turns);
+
+  // record in Firestore 'cierres' collection
+  try{ await db.collection('cierres').doc(t.id).set(t); }catch(e){ console.warn('No se pudo guardar cierre en Firestore', e); }
+
+  if(session && session.turnId===turn.id) session.canOperate=false;
+  updateUIForSession(); alert('Turno cerrado. Monto final entregado: ' + money(finalDelivered));
+  refreshAll();
+  setTimeout(()=>printTicket(),400);
+}
+
 function printTicket(){
-  const turns = load(DB.turnsKey)||[];
+  const turns = loadLS(LS.turns)||[];
   const lastClosed = turns.slice().reverse().find(t=>t.status==='closed') || turns.slice().reverse().find(t=>t.status==='open');
   if(!lastClosed) return alert('No hay turno para imprimir.');
-  const moves = (load(DB.movesKey)||[]).filter(m=>m.turnoId===lastClosed.id);
+  const moves = (loadLS(LS.moves)||[]).filter(m=>m.turnoId===lastClosed.id);
   let efectivo=0, ingresos=0, egresos=0;
   moves.forEach(m=>{ efectivo += (m.tipo==='ingreso'?m.monto:-m.monto); if(m.tipo==='ingreso') ingresos+=m.monto; if(m.tipo==='egreso') egresos+=m.monto; });
-  const denoms = load(DB.denomKey)||{}; const denomInfo = denoms[lastClosed.id]||null;
+  const denoms = loadLS(LS.denom)||{}; const denomInfo = denoms[lastClosed.id]||null;
   const balance = ingresos - egresos;
   const opened = new Date(lastClosed.openedAt); const closed = lastClosed.closedAt ? new Date(lastClosed.closedAt) : new Date();
   const diffMs = Math.max(0, closed.getTime() - opened.getTime()); const totalMin = Math.floor(diffMs/60000); const hh = Math.floor(totalMin/60); const mm = totalMin%60;
   const hoursText = `${hh} h ${mm} min`;
   const dots='........................................';
   const ticketHtml = `
-  <div class="ticket" style="width:270px;padding:16px;font-family:Arial,Helvetica,sans-serif;">
-    <div style="text-align:center;font-weight:800;font-size:15px">eVocal Studio</div>
+  <div class="ticket" style="width:270px;padding:18px;font-family:Arial,Helvetica,sans-serif;font-weight:700;">
+    <div style="text-align:center;font-weight:800;font-size:16px">eVocal Studio</div>
     <div style="text-align:center;font-size:12px;margin-top:6px">Corte de Caja</div>
     <div class="dots">${dots}</div>
+
     <div style="font-size:13px">Fecha: <strong>${lastClosed.id.slice(0,2)}/${lastClosed.id.slice(2,4)}/${lastClosed.id.slice(4,8)}</strong></div>
-    <div style="font-size:13px">Hora: <strong>${formatTime(new Date())}</strong></div>
+    <div style="font-size:13px">Hora: <strong>${fmtTime(new Date())}</strong></div>
     <div style="font-size:13px">Turno: <strong>${lastClosed.shift==='M'?'Matutino':'Vespertino'}</strong></div>
     <div class="dots">${dots}</div>
-    <div>
-      ${moves.map(m=>`<div style="display:flex;justify-content:space-between;padding:8px 0;font-weight:700"><div style="max-width:160px;text-align:left">${m.concepto}</div><div style="min-width:80px;text-align:${m.tipo==='ingreso'?'right':'left'}">${m.tipo==='ingreso'? '+' : '-'} ${money(m.monto)}</div></div>`).join('')}
+
+    <div style="margin-top:6px; font-weight:700;">
+      ${moves.map(m=>`<div style="display:flex;justify-content:space-between;padding:10px 0;font-weight:700"><div style="max-width:160px;text-align:left">${m.concepto}</div><div style="min-width:90px;text-align:${m.tipo==='ingreso'?'right':'left'}">${m.tipo==='ingreso'? '+' : '-'} ${money(m.monto)}</div></div>`).join('')}
     </div>
+
     <div class="dots">${dots}</div>
+
     <div style="display:flex;justify-content:space-between;font-weight:800;padding:8px 0;font-size:13px"><div>Total efectivo</div><div>${money(efectivo)}</div></div>
     <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px"><div><strong>Total ingresos</strong></div><div>${money(ingresos)}</div></div>
     <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px"><div><strong>Total egresos</strong></div><div>${money(egresos)}</div></div>
-    <div class="dots">${dots}</div>
-    <div style="font-size:13px;font-weight:700">Horas abiertas de la caja: <strong>${hoursText}</strong></div>
 
-    <div style="margin-top:18px;padding-top:12px">
-      <div style="width:100%;border-bottom:2px solid #000;height:2px;margin-bottom:10px"></div>
-      <div style="font-size:11px;color:#444;text-align:center">Entregado por</div>
+    <div class="dots">${dots}</div>
+    <div style="font-size:13px;font-weight:800">Horas abiertas de la caja: <strong>${hoursText}</strong></div>
+
+    <div style="margin-top:28px">
+      <div style="width:100%;border-bottom:3px solid #000;height:2px;margin-bottom:10px"></div>
+      <div style="font-size:12px;color:#444;text-align:center">Entregado por</div>
     </div>
 
-    <div style="margin-top:24px;padding-top:12px">
-      <div style="width:100%;border-bottom:2px solid #000;height:2px;margin-bottom:10px"></div>
-      <div style="font-size:11px;color:#444;text-align:center">Recibido por</div>
+    <div style="margin-top:36px">
+      <div style="width:100%;border-bottom:3px solid #000;height:2px;margin-bottom:10px"></div>
+      <div style="font-size:12px;color:#444;text-align:center">Recibido por</div>
     </div>
 
     <div class="dots" style="margin-top:12px">${dots}</div>
-    <div style="font-size:9px;color:#444;white-space:pre-wrap">
+
+    <div class="footer-legal">
 eVocal Studio
+
 Declaración de Responsabilidad y Confidencialidad
 
 Al firmar este comprobante, confirmo que he recibido la caja correspondiente al turno asignado, verificando que los montos entregados y registrados coinciden con el efectivo físico en resguardo.
@@ -567,97 +669,66 @@ Este documento constituye un acuerdo de confidencialidad y responsabilidad admin
 Uso exclusivo de eVocal Studio.
     </div>
   </div>`;
-  const w = window.open('','ticketPrint'); w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Ticket</title><style>body{font-family:Arial;margin:0;padding:8px}.ticket{width:270px;padding:12px}.dots{text-align:center;color:#666;letter-spacing:1px;margin:8px 0}</style></head><body>'); w.document.write(ticketHtml); w.document.close(); setTimeout(()=>w.print(),400);
+  const w = window.open('','ticketPrint'); w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Ticket</title><style>body{font-family:Arial;margin:0;padding:8px}.ticket{width:270px;padding:12px}.dots{text-align:center;color:#666;letter-spacing:1px;margin:8px 0}</style></head><body>');
+  w.document.write(ticketHtml); w.document.close(); setTimeout(()=>w.print(),400);
 }
 
-/* ========== turns / closures ========== */
-function closeTurn(){
-  const turn = (load(DB.turnsKey)||[]).find(t=>t.status==='open'); if(!turn) return alert('No hay turno abierto.');
-  if(session && session.userId === turn.encargadoId){
-    if(!confirm('¿Deseas cerrar tu turno?')) return;
-  } else {
-    const pin = prompt('PIN de Encargado/Dirección:'); if(!pin) return; const auth = findUserByPin(pin); if(!auth || !(auth.roles.includes('encargado')||auth.roles.includes('direccion')||auth.name==='Jair Pérez')) return alert('PIN inválido.');
-  }
-  const denoms = load(DB.denomKey)||{}; const denomInfo = denoms[turn.id] || null;
-  let finalDelivered = denomInfo ? denomInfo.total : null;
-  if(finalDelivered===null){
-    const moves = (load(DB.movesKey)||[]).filter(m=>m.turnoId===turn.id);
-    finalDelivered = moves.filter(m=>m.tipo==='ingreso').reduce((a,b)=>a+b.monto,0) - moves.filter(m=>m.tipo==='egreso').reduce((a,b)=>a+b.monto,0);
-  }
-  const turns = load(DB.turnsKey)||[]; const t = turns.find(x=>x.id===turn.id); t.status='closed'; t.closedAt=new Date().toISOString(); t.closedBy=session?session.name:'Sistema'; t.closedDelivered=finalDelivered; save(DB.turnsKey, turns);
-  if(session && session.turnId===turn.id) session.canOperate=false;
-  updateUIForSession(); alert('Turno cerrado: ' + money(finalDelivered)); refreshAll(); setTimeout(()=>printTicket(),400);
+/* ===========================
+   Denominations
+   =========================== */
+function calculateDenominations(){
+  const v1000 = parseInt(document.getElementById('d1000')?.value)||0;
+  const v500 = parseInt(document.getElementById('d500')?.value)||0;
+  const v200 = parseInt(document.getElementById('d200')?.value)||0;
+  const v100 = parseInt(document.getElementById('d100')?.value)||0;
+  const v50 = parseInt(document.getElementById('d50')?.value)||0;
+  const v20 = parseInt(document.getElementById('d20')?.value)||0;
+  const v10 = parseInt(document.getElementById('d10')?.value)||0;
+  const v5 = parseInt(document.getElementById('d5')?.value)||0;
+  const v2 = parseInt(document.getElementById('d2')?.value)||0;
+  const v1 = parseInt(document.getElementById('d1')?.value)||0;
+  const v050 = parseInt(document.getElementById('d050')?.value)||0;
+  const total = v1000*1000 + v500*500 + v200*200 + v100*100 + v50*50 + v20*20 + v10*10 + v5*5 + v2*2 + v1*1 + v050*0.5;
+  document.getElementById('totalCounted') && (document.getElementById('totalCounted').innerText = money(total));
+  const turn = (loadLS(LS.turns)||[]).find(t=>t.status==='open');
+  let declared = 0;
+  if(turn){ const moves = (loadLS(LS.moves)||[]).filter(m=>m.turnoId===turn.id); declared = moves.filter(m=>m.tipo==='ingreso').reduce((a,b)=>a+b.monto,0) - moves.filter(m=>m.tipo==='egreso').reduce((a,b)=>a+b.monto,0); }
+  const declEl = document.getElementById('efectivoDeclarado'); if(declEl) declEl.innerText = money(declared);
+  const diffEl = document.getElementById('diferenciaEfectivo'); if(diffEl) diffEl.innerText = money(total - declared);
+  return total;
 }
+function saveDenominations(){ const turns = loadLS(LS.turns)||[]; const turn = turns.find(t=>t.status==='open'); if(!turn) return alert('No hay turno abierto.'); const total = calculateDenominations(); const denoms = JSON.parse(localStorage.getItem(LS.denom) || '{}'); denoms[turn.id] = { total, savedAt: new Date().toISOString(), by: session?session.name:'N/A' }; localStorage.setItem(LS.denom, JSON.stringify(denoms)); try{ db.collection('denoms').doc(turn.id).set(denoms[turn.id]); }catch(e){} alert('Conteo guardado.'); }
 
-function closeMonthly(){
-  const ym = prompt('Cierre mensual - ingresa YYYY-MM (vacío = mes actual)');
-  const target = ym ? new Date(ym+'-01T00:00:00') : new Date();
-  if(isNaN(target.getTime())) return alert('Formato inválido.');
-  const month = target.getMonth()+1; const year = target.getFullYear();
-  if(!confirm(`Confirmar cierre mensual para ${String(month).padStart(2,'0')}/${year}?`)) return;
-  const moves = load(DB.movesKey)||[]; const included = moves.filter(m=>{ const d=new Date(m.createdAt); return d.getMonth()+1===month && d.getFullYear()===year; });
-  if(included.length===0) return alert('No hay movimientos en ese mes.');
-  const total = included.reduce((s,m)=>s + (m.tipo==='ingreso'?m.monto:-m.monto),0);
-  const closure = { id: `CIERRE_${String(month).padStart(2,'0')}${year}`, month: String(month).padStart(2,'0'), year, createdAt: new Date().toISOString(), by: session?session.name:'Sistema', moveCount: included.length, total, moves: included.map(m=>m.id) };
-  const monthly = load(DB.monthlyKey)||[]; monthly.push(closure); save(DB.monthlyKey, monthly); alert('Cierre mensual creado: '+closure.id); refreshTurnHistory();
-}
-
-function closeAnnual(auto=false){
-  const today = new Date();
-  if(!auto){ if(!confirm('Generar cierre anual (23 Dic) para el año actual?')) return; }
-  const year = today.getFullYear();
-  const moves = load(DB.movesKey)||[]; const included = moves.filter(m=>{ const d=new Date(m.createdAt); return d.getFullYear()===year; });
-  if(included.length===0) return alert('No hay movimientos en este año.');
-  const total = included.reduce((s,m)=>s + (m.tipo==='ingreso'?m.monto:-m.monto),0);
-  const annual = load(DB.annualKey)||[]; if(annual.some(a=>a.year===year)) return alert('Ya existe cierre anual para este año.');
-  const closure = { id: `CIERRE_ANUAL_${year}`, year, createdAt:new Date().toISOString(), by: session?session.name:'Sistema', moveCount: included.length, total, moves: included.map(m=>m.id) };
-  annual.push(closure); save(DB.annualKey, annual); alert('Cierre anual creado: '+closure.id); refreshTurnHistory();
-}
-(function autoAnnualCheck(){ try{ const today=new Date(); if(today.getDate()===23 && today.getMonth()+1===12){ const year=today.getFullYear(); const annual = load(DB.annualKey)||[]; if(!annual.some(a=>a.year===year)) closeAnnual(true); } }catch(e){} })();
-
-/* ========== reset general ========== */
+/* ===========================
+   Reset general (master pin 1417)
+   =========================== */
 function resetGeneral(){
   const pin = prompt('Reset general — ingresa PIN maestro:');
   if(!pin) return; if(pin !== '1417') return alert('PIN maestro inválido.');
   if(!confirm('Confirmar Reset General: se BORRARÁN movimientos, turnos, cierres mensuales y anuales. Esta acción NO puede deshacerse.')) return;
-  save(DB.movesKey, []); save(DB.turnsKey, []); save(DB.denomKey, {}); save(DB.monthlyKey, []); save(DB.annualKey, []); save(DB.salesKey, []);
-  alert('Reset general realizado. Movimientos y cierres eliminados. Usuarios conservados.');
+  saveLS(LS.moves, []); saveLS(LS.turns, []); saveLS(LS.denom, {}); saveLS(LS.monthly, []); saveLS(LS.annual, []); saveLS(LS.sales, []);
+  try{ db.collection('meta').doc('resets').set({lastReset: new Date().toISOString(), by: session?session.name:'-'}) }catch(e){}
+  alert('Reset general realizado. Movimientos y cierres eliminados localmente. Usuarios conservados.');
   refreshAll();
 }
 
-/* ========== CSV export ========== */
-function exportCSV(){
-  const turns = load(DB.turnsKey)||[]; const moves = load(DB.movesKey)||[];
-  if(turns.length===0) return alert('Sin turnos.');
-  const rows = ['turnId,turnDate,shift,encargado,moveId,type,concept,amount,createdBy,createdAt'];
-  turns.forEach(t=>{
-    const related = moves.filter(m=>m.turnoId===t.id);
-    if(related.length===0) rows.push(`${t.id},${t.openedAt||''},${t.shift},${t.encargadoName},,,,,,`);
-    else related.forEach(m=> rows.push([t.id,t.openedAt,t.shift,t.encargadoName,m.id,m.tipo,`"${m.concepto.replace(/"/g,'""')}"`,m.monto,m.creatorName,m.createdAt].join(',')));
-  });
-  const blob = new Blob([rows.join('\n')],{type:'text/csv;charset=utf-8;'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href=url; a.download='caja_export.csv'; a.click();
-}
-
-/* ========== Reports (printable windows) ========== */
-/* Daily report: today's or selected turn (detailed) */
+/* ===========================
+   Reports (daily, monthly, annual) - saved also as 'cierres' docs when needed
+   =========================== */
 function exportDailyReport(){
-  const turns = load(DB.turnsKey)||[];
+  const turns = loadLS(LS.turns)||[];
   if(turns.length===0) return alert('No hay turnos registrados.');
-  const choice = prompt('Reporte diario - ingresa ID de turno específico o deja vacío para el último turno cerrado/abierto:');
-  let turn;
-  if(choice && choice.trim()) turn = turns.find(t=>t.id===choice.trim());
-  else turn = turns.slice().reverse().find(t=>t.status==='closed') || turns.slice().reverse().find(t=>t.status==='open');
+  const choice = prompt('Reporte diario - ingresa ID de turno o deja vacío para el último:');
+  const turn = choice ? turns.find(t=>t.id===choice.trim()) : turns.slice().reverse().find(t=>t.status==='closed') || turns.slice().reverse().find(t=>t.status==='open');
   if(!turn) return alert('Turno no encontrado.');
-  const moves = (load(DB.movesKey)||[]).filter(m=>m.turnoId===turn.id);
-  // summary
+  const moves = (loadLS(LS.moves)||[]).filter(m=>m.turnoId===turn.id);
   const ingresos = moves.filter(m=>m.tipo==='ingreso').reduce((s,m)=>s+m.monto,0);
   const egresos = moves.filter(m=>m.tipo==='egreso').reduce((s,m)=>s+m.monto,0);
   const balance = ingresos - egresos;
   const opened = new Date(turn.openedAt); const closed = turn.closedAt ? new Date(turn.closedAt) : new Date();
   const diffMs = Math.max(0, closed.getTime() - opened.getTime()); const totalMin = Math.floor(diffMs/60000); const hh = Math.floor(totalMin/60); const mm = totalMin%60;
   const hoursText = `${hh}h ${mm}m`;
-
-  let html = `<!doctype html><html><head><meta charset="utf-8"><title>Reporte diario - ${turn.id}</title><style>body{font-family:Arial;padding:18px;color:#111}table{width:100%;border-collapse:collapse}th,td{padding:8px;border:1px solid #ddd;text-align:left}th{background:#f0f0f0}</style></head><body>`;
+  let html = `<!doctype html><html><head><meta charset="utf-8"><title>Reporte Diario ${turn.id}</title><style>body{font-family:Arial;padding:18px;color:#111}table{width:100%;border-collapse:collapse}th,td{padding:8px;border:1px solid #ddd;text-align:left}th{background:#f0f0f0}</style></head><body>`;
   html += `<h2>Reporte Diario — Turno ${turn.id}</h2>`;
   html += `<div>Encargado: <strong>${turn.encargadoName}</strong> — Turno: ${turn.shift==='M'?'Matutino':'Vespertino'}</div>`;
   html += `<div>Abierto: ${turn.openedAt ? new Date(turn.openedAt).toLocaleString() : '-'} ${turn.closedAt? ' — Cerrado: ' + new Date(turn.closedAt).toLocaleString() : ''}</div>`;
@@ -665,44 +736,36 @@ function exportDailyReport(){
   html += `<h3 style="margin-top:14px">Resumen</h3>`;
   html += `<table><tr><th>Total ingresos</th><th>Total egresos</th><th>Balance</th><th>Movimientos</th></tr>`;
   html += `<tr><td>${money(ingresos)}</td><td>${money(egresos)}</td><td>${money(balance)}</td><td>${moves.length}</td></tr></table>`;
-
   html += `<h3 style="margin-top:14px">Detalle de movimientos</h3>`;
-  html += `<table><tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th>Nota</th><th>Monto</th></tr>`;
+  html += `<table><tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th>Nota</th><th style="text-align:right">Monto</th></tr>`;
   moves.forEach(m=> html += `<tr><td>${new Date(m.createdAt).toLocaleString()}</td><td>${m.tipo}</td><td>${m.concepto}</td><td>${(m.nota||'')}</td><td style="text-align:right">${money(m.monto)}</td></tr>`);
-  html += `</table>`;
-  html += `<div style="margin-top:16px;color:#666;font-size:12px">Generado: ${new Date().toLocaleString()}</div>`;
-  html += `</body></html>`;
+  html += `</table><div style="margin-top:16px;color:#666;font-size:12px">Generado: ${new Date().toLocaleString()}</div></body></html>`;
   const w = window.open('','rep'); w.document.write(html); w.document.close();
-  // user prints with Ctrl+P
 }
 
-/* Monthly report (option B - totals only) */
 function exportMonthlyReport(){
   const ym = prompt('Reporte mensual - ingresa YYYY-MM (vacío = mes actual)');
   const target = ym ? new Date(ym+'-01T00:00:00') : new Date();
   if(isNaN(target.getTime())) return alert('Formato inválido.');
   const month = target.getMonth()+1; const year = target.getFullYear();
-  const moves = load(DB.movesKey)||[]; const included = moves.filter(m=>{ const d=new Date(m.createdAt); return d.getMonth()+1===month && d.getFullYear()===year; });
+  const moves = loadLS(LS.moves)||[]; const included = moves.filter(m=>{ const d=new Date(m.createdAt); return d.getMonth()+1===month && d.getFullYear()===year; });
   if(included.length===0) return alert('No hay movimientos en ese mes.');
   const ingresos = included.filter(m=>m.tipo==='ingreso').reduce((s,m)=>s+m.monto,0);
   const egresos = included.filter(m=>m.tipo==='egreso').reduce((s,m)=>s+m.monto,0);
   const balance = ingresos - egresos;
-  // build printable HTML
-  let html = `<!doctype html><html><head><meta charset="utf-8"><title>Reporte mensual ${String(month).padStart(2,'0')}-${year}</title><style>body{font-family:Arial;padding:18px;color:#111}table{width:100%;border-collapse:collapse}th,td{padding:8px;border:1px solid #ddd;text-align:left}th{background:#f0f0f0}</style></head><body>`;
+  let html = `<!doctype html><html><head><meta charset="utf-8"><title>Reporte mensual ${month}-${year}</title><style>body{font-family:Arial;padding:18px;color:#111}table{width:100%;border-collapse:collapse}th,td{padding:8px;border:1px solid #ddd;text-align:left}th{background:#f0f0f0}</style></head><body>`;
   html += `<h2>Reporte Mensual — ${String(month).padStart(2,'0')}/${year}</h2>`;
   html += `<table><tr><th>Total ingresos</th><th>Total egresos</th><th>Balance</th><th>Movimientos</th></tr>`;
   html += `<tr><td>${money(ingresos)}</td><td>${money(egresos)}</td><td>${money(balance)}</td><td>${included.length}</td></tr></table>`;
-  html += `<div style="margin-top:12px;color:#666;font-size:12px">Generado: ${new Date().toLocaleString()}</div>`;
-  html += `</body></html>`;
+  html += `<div style="margin-top:12px;color:#666;font-size:12px">Generado: ${new Date().toLocaleString()}</div></body></html>`;
   const w = window.open('','repmonth'); w.document.write(html); w.document.close();
 }
 
-/* Annual report (totals) */
 function exportAnnualReport(){
   const yy = prompt('Reporte anual - ingresa YYYY (vacío = año actual)');
   const year = yy ? parseInt(yy) : new Date().getFullYear();
   if(isNaN(year)) return alert('Año inválido.');
-  const moves = load(DB.movesKey)||[]; const included = moves.filter(m=>{ const d=new Date(m.createdAt); return d.getFullYear()===year; });
+  const moves = loadLS(LS.moves)||[]; const included = moves.filter(m=>{ const d=new Date(m.createdAt); return d.getFullYear()===year; });
   if(included.length===0) return alert('No hay movimientos en ese año.');
   const ingresos = included.filter(m=>m.tipo==='ingreso').reduce((s,m)=>s+m.monto,0);
   const egresos = included.filter(m=>m.tipo==='egreso').reduce((s,m)=>s+m.monto,0);
@@ -711,19 +774,22 @@ function exportAnnualReport(){
   html += `<h2>Reporte Anual — ${year}</h2>`;
   html += `<table><tr><th>Total ingresos</th><th>Total egresos</th><th>Balance</th><th>Movimientos</th></tr>`;
   html += `<tr><td>${money(ingresos)}</td><td>${money(egresos)}</td><td>${money(balance)}</td><td>${included.length}</td></tr></table>`;
-  html += `<div style="margin-top:12px;color:#666;font-size:12px">Generado: ${new Date().toLocaleString()}</div>`;
-  html += `</body></html>`;
+  html += `<div style="margin-top:12px;color:#666;font-size:12px">Generado: ${new Date().toLocaleString()}</div></body></html>`;
   const w = window.open('','repyear'); w.document.write(html); w.document.close();
 }
 
-/* ========== users / reset reqs ========== */
-function createUser(){ const name=document.getElementById('newName').value.trim(); const role=document.getElementById('newRole').value; const pin=document.getElementById('newPin').value.trim(); if(!name||!pin) return alert('Nombre y PIN son requeridos.'); if(!/^\d{4,8}$/.test(pin)) return alert('PIN debe ser numérico (4-8 dígitos).'); const users = load(DB.usersKey)||[]; if(users.some(u=>u.name.toLowerCase()===name.toLowerCase())) return alert('Ya existe usuario con ese nombre.'); users.push({id:uid('u'), name, roles:[role], pin}); save(DB.usersKey, users); document.getElementById('newName').value=''; document.getElementById('newPin').value=''; showUsers(); alert('Usuario creado.'); }
-function showUsers(){ const users=load(DB.usersKey)||[]; const el=document.getElementById('usersList'); el.innerHTML = users.map(u=>`<div style="padding:8px;border-bottom:1px dashed ${getComputedStyle(document.documentElement).getPropertyValue('--border')}"><strong>${u.name}</strong><div class="small-muted">${u.roles.join(', ')}</div></div>`).join('')||'<em>No hay usuarios</em>'; }
-function requestForgot(){ const name=document.getElementById('forgotName').value.trim(); const reason=document.getElementById('forgotReason').value.trim(); if(!name||!reason) return alert('Completa campos.'); const users=load(DB.usersKey)||[]; const u=users.find(x=>x.name.toLowerCase()===name.toLowerCase()); if(!u) return alert('Usuario no encontrado.'); const reqs=load(DB.resetReqKey)||[]; reqs.push({id:uid('r'), userId:u.id, userName:u.name, reason, requestedBy:u.name, ts:new Date().toISOString(), type:'forgot'}); save(DB.resetReqKey, reqs); refreshResetRequests(); alert('Solicitud enviada.'); document.getElementById('forgotName').value=''; document.getElementById('forgotReason').value=''; }
-function refreshResetRequests(){ const reqs=load(DB.resetReqKey)||[]; const el=document.getElementById('resetRequests'); if(reqs.length===0) el.innerHTML='<em>Sin solicitudes</em>'; else el.innerHTML = reqs.map(r=>`<div style="padding:8px;border-bottom:1px dashed ${getComputedStyle(document.documentElement).getPropertyValue('--border')}"><strong>${r.userName}</strong> — ${r.type}<div class="small-muted">Solicitado: ${new Date(r.ts).toLocaleString()}</div></div>`).join(''); }
+/* ===========================
+   Users & forgotten PIN
+   =========================== */
+function createUser(){ const name=document.getElementById('newName').value.trim(); const role=document.getElementById('newRole').value; const pin=document.getElementById('newPin').value.trim(); if(!name||!pin) return alert('Nombre y PIN son requeridos.'); if(!/^\d{4,8}$/.test(pin)) return alert('PIN debe ser numérico (4-8 dígitos).'); const users = loadLS(LS.users)||[]; if(users.some(u=>u.name.toLowerCase()===name.toLowerCase())) return alert('Ya existe usuario con ese nombre.'); users.push({id:uid('u'), name, roles:[role], pin}); saveLS(LS.users, users); document.getElementById('newName').value=''; document.getElementById('newPin').value=''; showUsers(); alert('Usuario creado.'); }
+function showUsers(){ const users=loadLS(LS.users)||[]; const el=document.getElementById('usersList'); el.innerHTML = users.map(u=>`<div style="padding:8px;border-bottom:1px dashed ${getComputedStyle(document.documentElement).getPropertyValue('--border')}"><strong>${u.name}</strong><div class="small-muted">${u.roles.join(', ')}</div></div>`).join('')||'<em>No hay usuarios</em>'; }
+function requestForgot(){ const name=document.getElementById('forgotName').value.trim(); const reason=document.getElementById('forgotReason').value.trim(); if(!name||!reason) return alert('Completa campos.'); const users=loadLS(LS.users)||[]; const u=users.find(x=>x.name.toLowerCase()===name.toLowerCase()); if(!u) return alert('Usuario no encontrado.'); const reqs=loadLS(LS.resetReq)||[]; reqs.push({id:uid('r'), userId:u.id, userName:u.name, reason, requestedBy:u.name, ts:new Date().toISOString(), type:'forgot'}); saveLS(LS.resetReq, reqs); refreshResetRequests(); alert('Solicitud enviada.'); document.getElementById('forgotName').value=''; document.getElementById('forgotReason').value=''; }
+function refreshResetRequests(){ const reqs=loadLS(LS.resetReq)||[]; const el=document.getElementById('resetRequests'); if(reqs.length===0) el.innerHTML='<em>Sin solicitudes</em>'; else el.innerHTML = reqs.map(r=>`<div style="padding:8px;border-bottom:1px dashed ${getComputedStyle(document.documentElement).getPropertyValue('--border')}"><strong>${r.userName}</strong> — ${r.type}<div class="small-muted">Solicitado: ${new Date(r.ts).toLocaleString()}</div></div>`).join(''); }
 
-/* ========== UI refresh helpers ========== */
-function msUntil(targetDate){ return Math.max(0, new Date(targetDate).getTime() - now().getTime()); }
+/* ===========================
+   UI helpers, countdown & init
+   =========================== */
+function msUntil(target){ return Math.max(0, new Date(target).getTime() - now().getTime()); }
 function formatRemaining(ms){ const totalMin = Math.floor(ms/60000); const h=Math.floor(totalMin/60); const m = totalMin%60; return `${h}h ${m}m`; }
 function updateCountdown(){
   const s = detectShift(new Date());
@@ -732,20 +798,23 @@ function updateCountdown(){
   else if(s==='V'){ const end = new Date(); end.setHours(21,0,0,0); el.textContent = `⏰ Tiempo para corte (fin Vespertino): ${formatRemaining(msUntil(end))}`; }
   else el.textContent = `⏰ Fuera de horario de turnos`;
 }
+setInterval(updateCountdown,1000); updateCountdown();
 
 function refreshTurnHistory(){
-  const turns = load(DB.turnsKey)||[]; const monthly = load(DB.monthlyKey)||[]; const annual = load(DB.annualKey)||[]; const el = document.getElementById('turnHistory'); const parts = [];
+  const turns = loadLS(LS.turns)||[]; const monthly = loadLS(LS.monthly)||[]; const annual = loadLS(LS.annual)||[]; const el = document.getElementById('turnHistory'); const parts = [];
   if(turns.length===0) parts.push('<em>No hay turnos</em>'); else parts.push(turns.slice().reverse().map(t=>`<div style="padding:8px;border-bottom:1px dashed ${getComputedStyle(document.documentElement).getPropertyValue('--border')};"><div style="display:flex;justify-content:space-between"><div><strong>${t.id}</strong> — ${t.shift==='M'?'Matutino':'Vespertino'}</div><div>${t.status.toUpperCase()}</div></div><div class="small-muted">Encargado: ${t.encargadoName} — Abierto: ${t.openedAt?new Date(t.openedAt).toLocaleString():''} ${t.closedAt? ' — Cerrado: ' + new Date(t.closedAt).toLocaleString():''}</div></div>`).join(''));
   if(monthly && monthly.length){ parts.push('<div style="margin-top:6px;font-weight:700">— Cierres mensuales —</div>'); parts.push(monthly.slice().reverse().map(m=>`<div style="padding:8px;border-bottom:1px dashed ${getComputedStyle(document.documentElement).getPropertyValue('--border')};"><div style="display:flex;justify-content:space-between"><div><strong>${m.id}</strong></div><div>Total: ${money(m.total)}</div></div><div class="small-muted">Mes: ${m.month}/${m.year} — Movimientos: ${m.moveCount} — Generado: ${new Date(m.createdAt).toLocaleString()} — Por: ${m.by}</div></div>`).join('')); }
   if(annual && annual.length){ parts.push('<div style="margin-top:6px;font-weight:700">— Cierres anuales —</div>'); parts.push(annual.slice().reverse().map(a=>`<div style="padding:8px;border-bottom:1px dashed ${getComputedStyle(document.documentElement).getPropertyValue('--border')};"><div style="display:flex;justify-content:space-between"><div><strong>${a.id}</strong></div><div>Total: ${money(a.total)}</div></div><div class="small-muted">Año: ${a.year} — Movimientos: ${a.moveCount} — Generado: ${new Date(a.createdAt).toLocaleString()} — Por: ${a.by}</div></div>`).join('')); }
   el.innerHTML = parts.join('');
 }
 
+function updateSums(ef,ing,egr,balance){ document.getElementById('sumEfectivo').innerText = money(ef); document.getElementById('sumIngresos').innerText = money(ing); document.getElementById('sumEgresos').innerText = money(egr); document.getElementById('sumBalance').innerText = money(balance); }
+
 function updateUIForSession(){
   const logged = !!session;
   document.querySelectorAll('.tab').forEach(t=>t.style.display='none');
   document.querySelector('.tab[data-tab="access"]').style.display='';
-  const turnOpen = (load(DB.turnsKey)||[]).find(t=>t.status==='open');
+  const turnOpen = (loadLS(LS.turns)||[]).find(t=>t.status==='open');
   if(logged && turnOpen){
     document.querySelector('.tab[data-tab="cash"]').style.display='';
     document.querySelector('.tab[data-tab="venta"]').style.display='';
@@ -772,7 +841,16 @@ function updateUIForSession(){
   refreshAll();
 }
 
-function refreshAll(){ displayShift(); refreshMovements(); refreshTurnHistory(); showUsers(); refreshResetRequests(); const turn = (load(DB.turnsKey)||[]).find(t=>t.status==='open'); const prevNoteEl = document.getElementById('previousDeliveredNote'); if(turn && turn.previousDelivered!==undefined && turn.previousDelivered!==null) prevNoteEl.innerText = 'Monto entregado por turno anterior: ' + money(turn.previousDelivered); else prevNoteEl.innerText=''; const declared = turn ? ((load(DB.movesKey)||[]).filter(m=>m.turnoId===turn.id).filter(m=>m.tipo==='ingreso').reduce((a,b)=>a+b.monto,0) - (load(DB.movesKey)||[]).filter(m=>m.turnoId===turn.id).filter(m=>m.tipo==='egreso').reduce((a,b)=>a+b.monto,0)) : 0; document.getElementById('efectivoDeclarado') && (document.getElementById('efectivoDeclarado').innerText = money(declared)); }
+function refreshAll(){ displayShift(); refreshMovements(); refreshTurnHistory(); showUsers(); refreshResetRequests();
+  const turn = (loadLS(LS.turns)||[]).find(t=>t.status==='open'); const prevNoteEl = document.getElementById('previousDeliveredNote');
+  if(turn && turn.previousDelivered!==undefined && turn.previousDelivered!==null) prevNoteEl.innerText = 'Monto entregado por turno anterior: ' + money(turn.previousDelivered); else prevNoteEl.innerText='';
+  const declared = turn ? ((loadLS(LS.moves)||[]).filter(m=>m.turnoId===turn.id).filter(m=>m.tipo==='ingreso').reduce((a,b)=>a+b.monto,0) - (loadLS(LS.moves)||[]).filter(m=>m.turnoId===turn.id).filter(m=>m.tipo==='egreso').reduce((a,b)=>a+b.monto,0)) : 0;
+  document.getElementById('efectivoDeclarado') && (document.getElementById('efectivoDeclarado').innerText = money(declared));
+}
+
+/* small helpers for simulate time and go to forgot */
+function simulateTime(){ const v=prompt('Ingresa fecha-hora ISO (ej: 2025-11-06T10:00) o vacío para real'); if(v) { alert('Simulación visual: la app usa la hora real del equipo para cálculos.'); } }
+function goToForgot(){ tabs.forEach(t=>t.classList.remove('active')); document.querySelector('.tab[data-tab="forgot"]').classList.add('active'); document.getElementById('tab-access').style.display='none'; document.getElementById('tab-forgotCard').style.display=''; }
 
 /* init */
 updateUIForSession(); refreshAll();
