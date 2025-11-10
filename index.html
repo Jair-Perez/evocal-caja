@@ -4,15 +4,10 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>eVocal Studio V4</title>
-
-<!-- Firebase compat (fácil integración con onSnapshot) -->
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
-
 <style>
 :root{
   --paper-width:72mm;
-  --bg:#ffffff;
+  --bg:#fafafa;
   --card:#ffffff;
   --muted:#6b7280;
   --accent:#0b1720;
@@ -24,7 +19,7 @@
   font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif;
 }
 *{box-sizing:border-box}
-body{margin:0;background:#fafafa;color:var(--accent);font-size:14px}
+body{margin:0;background:var(--bg);color:var(--accent);font-size:14px}
 .header{background:var(--card);border-bottom:1px solid var(--border);padding:16px var(--pad);display:flex;justify-content:space-between;align-items:center}
 .brand{font-weight:800;font-size:18px}
 .header .meta{color:var(--muted);font-size:13px}
@@ -269,9 +264,15 @@ input,select,textarea{width:100%;padding:10px;border:1px solid var(--border);bor
     </div>
   </div>
 
-<script>
+<script type="module">
 /* ===========================
-   FIREBASE CONFIG (compat)
+   Firebase modular imports
+   =========================== */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, addDoc, onSnapshot, orderBy, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+/* ===========================
+   Firebase config (tú pediste usar tu config)
    =========================== */
 const firebaseConfig = {
   apiKey: "AIzaSyDtMNrHgn9rK329qMNVWoj7TDVJ-RdtYnQ",
@@ -281,11 +282,13 @@ const firebaseConfig = {
   messagingSenderId: "640392902121",
   appId: "1:640392902121:web:a586ae422a0a908b1c0778"
 };
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+console.log("🔥 Firebase inicializado correctamente");
 
 /* ===========================
-   Helpers
+   Utilities
    =========================== */
 function uid(pref='id'){ return pref + '_' + Math.random().toString(36).slice(2,9) }
 function money(n){ return "$" + Number(n||0).toLocaleString('es-MX',{minimumFractionDigits:2, maximumFractionDigits:2}) }
@@ -293,42 +296,38 @@ function fmtShort(d){ const D=new Date(d); return `${String(D.getDate()).padStar
 function fmtTime(d){ const D=new Date(d); return `${String(D.getHours()).padStart(2,'0')}:${String(D.getMinutes()).padStart(2,'0')}:${String(D.getSeconds()).padStart(2,'0')}` }
 
 /* ===========================
-   Hierarchical refs: /{year}/{month}/{day}/{turn}/collection
+   Hierarchy helpers
+   /years/{year}/months/{month}/days/{day}/turnos/{turn}/...
    =========================== */
 function partsFromDate(d){
   const D = new Date(d);
   return { year: String(D.getFullYear()), month: String(D.getMonth()+1).padStart(2,'0'), day: String(D.getDate()).padStart(2,'0') };
 }
-function collectionPathForTurnDate(d, turno, collName){
-  const p = partsFromDate(d);
-  // path: years/{year}/months/{month}/days/{day}/turnos/{turno}/{collName}
-  return db.collection('years').doc(p.year).collection('months').doc(p.month).collection('days').doc(p.day).collection('turnos').doc(turno).collection(collName);
+function turnDocRefFrom(date, turno){
+  const p = partsFromDate(date);
+  return doc(db, `years/${p.year}/months/${p.month}/days/${p.day}/turnos/${turno}`);
 }
-function docRefForTurn(turnId){
-  // turnId = DDMMAAAATURNO (e.g., 09112025MAT)
-  const day = turnId.slice(0,2);
-  const month = turnId.slice(2,4);
-  const year = turnId.slice(4,8);
-  const turno = turnId.slice(8); // MAT or VES
-  return db.collection('years').doc(year).collection('months').doc(month).collection('days').doc(day).collection('turnos').doc(turno);
+function collRefFor(date, turno, collName){
+  const p = partsFromDate(date);
+  return collection(db, `years/${p.year}/months/${p.month}/days/${p.day}/turnos/${turno}/${collName}`);
+}
+function docRefForTurnId(turnId){
+  const day = turnId.slice(0,2), month = turnId.slice(2,4), year = turnId.slice(4,8), turno = turnId.slice(8);
+  return doc(db, `years/${year}/months/${month}/days/${day}/turnos/${turno}`);
 }
 
 /* ===========================
-   Seed users in Firestore if none exist
+   Seed users (only if none) - lightweight
    =========================== */
 async function ensureUsersSeed(){
-  const snap = await db.collection('users').limit(1).get();
-  if(!snap.empty) return;
-  const batch = db.batch();
-  const users = [
-    { name:'Jair Pérez', roles:['encargado','frontdesk','direccion'], pin:'2831' },
-    { name:'Dirección', roles:['direccion'], pin:'9999' }
-  ];
-  users.forEach(u=>{
-    const doc = db.collection('users').doc();
-    batch.set(doc, u);
-  });
-  try{ await batch.commit(); console.log('Usuarios semilla creados'); }catch(e){ console.warn('No se pudieron crear usuarios semilla', e); }
+  const q = query(collection(db,'users'), where('name','!=',''));
+  const r = await getDocs(q);
+  if(!r.empty) return;
+  try{
+    await addDoc(collection(db,'users'), { name:'Jair Pérez', roles:['encargado','frontdesk','direccion'], pin:'2831' });
+    await addDoc(collection(db,'users'), { name:'Dirección', roles:['direccion'], pin:'9999' });
+    console.log('Usuarios semilla creados');
+  }catch(e){ console.warn('No se pudo crear seed users', e); }
 }
 ensureUsersSeed();
 
@@ -338,6 +337,7 @@ ensureUsersSeed();
 let session = null;
 function detectShift(dt=new Date()){
   const h = dt.getHours();
+  // según tu última instrucción: Matutino 9-15, Vespertino 15-21
   if(h>=9 && h<15) return 'M';
   if(h>=15 && h<21) return 'V';
   return null;
@@ -349,9 +349,7 @@ function displayShift(){ const s=detectShift(new Date()); document.getElementByI
 displayShift();
 setInterval(displayShift,1000);
 
-/* ===========================
-   Tabs
-   =========================== */
+/* Tabs */
 const tabs = document.querySelectorAll('.tab');
 tabs.forEach(t=>t.addEventListener('click', ()=> {
   tabs.forEach(x=>x.classList.remove('active'));
@@ -367,55 +365,55 @@ tabs.forEach(t=>t.addEventListener('click', ()=> {
   refreshAll();
 }));
 
-/* ===========================
-   Login (Enter) + open turn (real-time)
-   =========================== */
+/* Login with Enter */
 document.getElementById('pinLogin').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); handleLogin(); }});
 document.getElementById('btnLogin').addEventListener('click', handleLogin);
 
+/* Helper: find user by PIN */
 async function findUserByPin(pin){
-  const snap = await db.collection('users').where('pin','==',pin).limit(1).get();
+  const q = query(collection(db,'users'), where('pin','==',pin));
+  const snap = await getDocs(q);
   if(snap.empty) return null;
-  const doc = snap.docs[0]; return { id: doc.id, ...doc.data() };
+  const d = snap.docs[0]; return { id: d.id, ...d.data() };
 }
 
-let movementsUnsub = null;
-let ventasUnsub = null;
-let turnUnsub = null;
+/* Realtime unsub handles */
+let movementsUnsub = null, ventasUnsub = null, turnUnsub = null;
 
+/* Handle login: open or attach to turn (hierarchy) */
 async function handleLogin(){
   const pin = document.getElementById('pinLogin').value.trim();
   if(!pin) return alert('Ingresa PIN.');
   const user = await findUserByPin(pin);
   if(!user) return alert('PIN no reconocido.');
-  session = { userId:user.id, name:user.name, roles:user.roles || [] };
+  session = { userId: user.id, name: user.name, roles: user.roles || [] };
   document.getElementById('userDisplay').textContent = session.name;
   document.getElementById('pinLogin').value='';
   document.getElementById('sessionActions').innerHTML = `<button class="link-btn" onclick="logout()">Cerrar sesión</button>`;
   let shift = detectShift(new Date());
   if(!shift) shift = document.getElementById('manualTurno').value; else document.getElementById('manualTurno').value = shift;
 
-  // find open turn for today (in hierarchical path)
-  const D = new Date();
-  const { year, month, day } = partsFromDate(D);
+  const now = new Date();
+  const parts = partsFromDate(now);
   const turnoName = shift === 'M' ? 'MAT' : 'VES';
-  const turnDocRef = db.collection('years').doc(year).collection('months').doc(month).collection('days').doc(day).collection('turnos').doc(turnoName);
-  const snap = await turnDocRef.get();
-  if(snap.exists && snap.data().status === 'open'){
-    // resume open turn
-    session.turnId = createTurnId(D, shift);
-    session.canOperate = (snap.data().encargadoId === session.userId) || session.roles.includes('encargado') || session.roles.includes('direccion') || session.name==='Jair Pérez';
+  const turnDocPath = `years/${parts.year}/months/${parts.month}/days/${parts.day}/turnos/${turnoName}`;
+  const turnDoc = doc(db, turnDocPath);
+  const tSnap = await getDoc(turnDoc);
+  if(tSnap.exists() && tSnap.data().status === 'open'){
+    // attach
+    session.turnId = createTurnId(now, shift);
+    session.canOperate = (tSnap.data().encargadoId === session.userId) || session.roles.includes('encargado') || session.roles.includes('direccion') || session.name==='Jair Pérez';
     showTabsAfterOpen();
     subscribeRealtime(session.turnId);
     updateUIForSession(); refreshAll();
     return;
   }
 
-  // create new turn doc
-  const turnId = createTurnId(D, shift);
-  const newTurnData = { id: turnId, shift, encargadoId: session.userId, encargadoName: session.name, status:'open', openedAt: new Date().toISOString(), previousDelivered: null };
+  // create new turn
+  const turnId = createTurnId(now, shift);
+  const newTurn = { id: turnId, shift, encargadoId: session.userId, encargadoName: session.name, status:'open', openedAt: new Date().toISOString(), previousDelivered:null };
   try{
-    await turnDocRef.set(newTurnData);
+    await setDoc(turnDoc, newTurn);
     session.turnId = turnId;
     session.canOperate = true;
     showTabsAfterOpen();
@@ -444,27 +442,21 @@ function logout(){
   session=null; document.getElementById('userDisplay').textContent='No autenticado'; document.getElementById('sessionActions').innerHTML=''; updateUIForSession();
 }
 
-/* ===========================
-   Realtime subscriptions
-   =========================== */
+/* Realtime subscriptions */
 function subscribeRealtime(turnId){
-  // unsubscribe previous
   if(movementsUnsub) movementsUnsub();
   if(ventasUnsub) ventasUnsub();
   if(turnUnsub) turnUnsub();
 
-  // derive date from turnId
   const day = turnId.slice(0,2), month = turnId.slice(2,4), year = turnId.slice(4,8), turno = turnId.slice(8);
-  const baseRef = db.collection('years').doc(year).collection('months').doc(month).collection('days').doc(day).collection('turnos').doc(turno);
+  const turnPath = `years/${year}/months/${month}/days/${day}/turnos/${turno}`;
+  const turnRef = doc(db, turnPath);
 
-  // subscribe to turn doc (status updates)
-  turnUnsub = baseRef.onSnapshot(doc => {
-    if(!doc.exists) return;
-    // update previous delivered note etc.
-    const data = doc.data();
+  turnUnsub = onSnapshot(turnRef, snap => {
+    if(!snap.exists()) return;
+    const data = snap.data();
     const prev = data.previousDelivered;
     document.getElementById('previousDeliveredNote').innerText = prev ? 'Monto entregado por turno anterior: ' + money(prev) : '';
-    // if closed elsewhere -> update UI
     if(data.status === 'closed' && session && session.turnId === turnId) {
       session.canOperate = false;
       alert('Este turno ha sido cerrado (actualizado desde otra máquina).');
@@ -473,22 +465,22 @@ function subscribeRealtime(turnId){
     refreshTurnHistory();
   });
 
-  // movements realtime
-  movementsUnsub = baseRef.collection('movimientos').orderBy('createdAt','desc').onSnapshot(snap=>{
+  const movColl = collection(db, `years/${year}/months/${month}/days/${day}/turnos/${turno}/movimientos`);
+  const qMov = query(movColl, orderBy('createdAt','desc'));
+  movementsUnsub = onSnapshot(qMov, snap=>{
     const moves = snap.docs.map(d=>({ id:d.id, ...d.data() }));
     renderMovements(moves);
   });
 
-  // ventas realtime (we render sales maybe in history; not necessary to show elsewhere)
-  ventasUnsub = baseRef.collection('ventas').orderBy('createdAt','desc').onSnapshot(snap=>{
-    // we won't render sales list here; history will pick up from firestore queries
+  const vColl = collection(db, `years/${year}/months/${month}/days/${day}/turnos/${turno}/ventas`);
+  const qV = query(vColl, orderBy('createdAt','desc'));
+  ventasUnsub = onSnapshot(qV, snap=>{
+    // for future UI updates; we refresh history
     refreshTurnHistory();
   });
 }
 
-/* ===========================
-   Movements (Firestore hierarchical)
-   =========================== */
+/* Movements */
 function clearMovementForm(){
   document.getElementById('movMonto').value=''; document.getElementById('movNota').value=''; document.getElementById('movConceptoCustom').value=''; document.getElementById('movConceptoCustom').style.display='none'; document.getElementById('customConceptLabel').style.display='none'; document.getElementById('movConcepto').value='Reembolso'; document.getElementById('movTipo').value='ingreso';
 }
@@ -505,20 +497,14 @@ async function addMovement(){
   if(monto<=0) return alert('Monto inválido.');
   const nota = document.getElementById('movNota').value.trim();
 
-  // determine collection ref
   const day = session.turnId.slice(0,2), month = session.turnId.slice(2,4), year = session.turnId.slice(4,8), turno = session.turnId.slice(8);
-  const collRef = db.collection('years').doc(year).collection('months').doc(month).collection('days').doc(day).collection('turnos').doc(turno).collection('movimientos');
-
+  const collPath = `years/${year}/months/${month}/days/${day}/turnos/${turno}/movimientos`;
   const move = { id: uid('m'), turnoId: session.turnId, createdBy: session.userId, creatorName: session.name, tipo, metodo:'efectivo', concepto, nota, monto, createdAt: new Date().toISOString(), protected: protectedFlag };
-
   try{
-    await collRef.doc(move.id).set(move);
+    await setDoc(doc(db, collPath, move.id), move);
     clearMovementForm();
-    // refreshMovements will be called via onSnapshot
     refreshTurnHistory();
-  }catch(e){
-    console.error('Error guardando movimiento', e); alert('No se pudo guardar en la nube. Revisa conexión.');
-  }
+  }catch(e){ console.error('Error guardando movimiento', e); alert('No se pudo guardar en la nube. Revisa conexión.'); }
 }
 
 function renderMovements(moves){
@@ -539,17 +525,16 @@ function renderMovements(moves){
 async function editMovement(id){
   if(!session || !session.turnId) return alert('No hay sesión/turno.');
   const day = session.turnId.slice(0,2), month = session.turnId.slice(2,4), year = session.turnId.slice(4,8), turno = session.turnId.slice(8);
-  const docRef = db.collection('years').doc(year).collection('months').doc(month).collection('days').doc(day).collection('turnos').doc(turno).collection('movimientos').doc(id);
-  const snap = await docRef.get();
-  if(!snap.exists) return alert('Movimiento no encontrado.');
+  const docPath = `years/${year}/months/${month}/days/${day}/turnos/${turno}/movimientos/${id}`;
+  const snap = await getDoc(doc(db, docPath));
+  if(!snap.exists()) return alert('Movimiento no encontrado.');
   const m = snap.data();
   if(!(session && (session.userId===m.createdBy || session.name==='Jair Pérez' || (session.roles && session.roles.includes('direccion'))))) return alert('No tienes permiso para editar.');
   const newMonto = parseFloat(prompt('Nuevo monto', m.monto)) || m.monto;
   const newNota = prompt('Nueva nota', m.nota || '') || m.nota;
   const newConcept = prompt('Nuevo concepto', m.concepto) || m.concepto;
   try{
-    await docRef.update({ monto: Number(newMonto.toFixed(2)), nota:newNota, concepto:newConcept });
-    // onSnapshot will refresh list
+    await updateDoc(doc(db, docPath), { monto: Number(newMonto.toFixed(2)), nota:newNota, concepto:newConcept });
     refreshTurnHistory();
   }catch(e){ console.error('Error editando movimiento', e); alert('No se pudo editar.'); }
 }
@@ -558,21 +543,19 @@ async function deleteMovement(id){
   if(!confirm('Eliminar movimiento?')) return;
   if(!session || !session.turnId) return alert('No hay sesión/turno.');
   const day = session.turnId.slice(0,2), month = session.turnId.slice(2,4), year = session.turnId.slice(4,8), turno = session.turnId.slice(8);
-  const docRef = db.collection('years').doc(year).collection('months').doc(month).collection('days').doc(day).collection('turnos').doc(turno).collection('movimientos').doc(id);
-  const snap = await docRef.get();
-  if(!snap.exists) return alert('No encontrado.');
+  const docPath = `years/${year}/months/${month}/days/${day}/turnos/${turno}/movimientos/${id}`;
+  const snap = await getDoc(doc(db, docPath));
+  if(!snap.exists()) return alert('No encontrado.');
   const m = snap.data();
   if(m.protected) return alert('Este movimiento fue marcado como "Otro" y no puede eliminarse. Solo puede editarse.');
   if(!(session && (session.userId===m.createdBy || session.name==='Jair Pérez' || (session.roles && session.roles.includes('direccion'))))) return alert('No tienes permiso para eliminar.');
   try{
-    await docRef.delete();
+    await deleteDoc(doc(db, docPath));
     refreshTurnHistory();
   }catch(e){ console.error('Error eliminando', e); alert('No se pudo eliminar.'); }
 }
 
-/* ===========================
-   Sales (ventas) hierarchical
-   =========================== */
+/* Sales */
 function clearSaleForm(){ document.getElementById('ventaCliente').value=''; document.getElementById('ventaMatricula').value=''; document.getElementById('ventaDescripcion').value=''; document.getElementById('ventaMonto').value=''; document.getElementById('ventaDescuento').value='0'; }
 
 async function registerSale(opts){
@@ -608,43 +591,31 @@ async function registerSale(opts){
     turno: session ? session.turnId : '-'
   };
   try{
-    // determine collection path: if session.turnId exists, store under that turn; otherwise store under today's date and generic turno "TRANS" (transition)
-    let collRef;
+    // store under turn if exists
     if(session && session.turnId){
       const day = session.turnId.slice(0,2), month = session.turnId.slice(2,4), year = session.turnId.slice(4,8), turno = session.turnId.slice(8);
-      collRef = db.collection('years').doc(year).collection('months').doc(month).collection('days').doc(day).collection('turnos').doc(turno).collection('ventas');
-      // if cash, also add movimiento ingreso
+      const ventasPath = `years/${year}/months/${month}/days/${day}/turnos/${turno}/ventas`;
       if(!opts.card){
+        // add simultaneous movimiento ingreso
         const move = { id: uid('m'), turnoId: session.turnId, createdBy: session.userId, creatorName: session.name, tipo: 'ingreso', metodo:'efectivo', concepto: desc, nota:`Venta - ${client} - Mat: ${matricula||'-'}`, monto: sale.total, createdAt: new Date().toISOString(), protected:false };
-        // write sale and movement in a batch
-        const saleRef = collRef.doc(sale.id);
-        const dayRef = db.collection('years').doc(year).collection('months').doc(month).collection('days').doc(day).collection('turnos').doc(turno);
-        const movRef = dayRef.collection('movimientos').doc(move.id);
-        const batch = db.batch();
-        batch.set(saleRef, sale);
-        batch.set(movRef, move);
-        await batch.commit();
+        await setDoc(doc(db, ventasPath, sale.id), sale);
+        await setDoc(doc(db, `years/${year}/months/${month}/days/${day}/turnos/${turno}/movimientos`, move.id), move);
       } else {
-        await collRef.doc(sale.id).set(sale);
+        await setDoc(doc(db, ventasPath, sale.id), sale);
       }
     } else {
-      // no turn: store under today's date / TRANS turno
+      // no turn, store under TRANS
       const now = new Date();
-      const { year, month, day } = partsFromDate(now);
-      const turnoName = 'TRANS';
-      collRef = db.collection('years').doc(year).collection('months').doc(month).collection('days').doc(day).collection('turnos').doc(turnoName).collection('ventas');
-      await collRef.doc(sale.id).set(sale);
+      const p = partsFromDate(now);
+      const ventasPath = `years/${p.year}/months/${p.month}/days/${p.day}/turnos/TRANS/ventas`;
+      await setDoc(doc(db, ventasPath, sale.id), sale);
     }
-    // print ticket
     printSaleTicket(sale);
     clearSaleForm();
     refreshTurnHistory();
-  }catch(e){
-    console.error('Error guardando venta', e); alert('No se pudo guardar la venta. Revisa conexión.');
-  }
+  }catch(e){ console.error('Error guardando venta', e); alert('No se pudo guardar la venta. Revisa conexión.'); }
 }
 
-/* sale ticket */
 function printSaleTicket(sale){
   const ticketHtml = `
     <div class="ticket" style="width:270px;padding:16px;font-family:Arial,Helvetica,sans-serif;">
@@ -674,33 +645,30 @@ function printSaleTicket(sale){
   w.document.write(ticketHtml); w.document.close(); setTimeout(()=>w.print(),400);
 }
 
-/* ===========================
-   Close turn & print (cierres)
-   =========================== */
+/* Close turn & printing (cierres) */
 async function closeTurn(){
   if(!session || !session.turnId) return alert('No hay turno abierto o no estás autenticado.');
-  // resolve turn doc ref
   const day = session.turnId.slice(0,2), month = session.turnId.slice(2,4), year = session.turnId.slice(4,8), turno = session.turnId.slice(8);
-  const turnDocRef = db.collection('years').doc(year).collection('months').doc(month).collection('days').doc(day).collection('turnos').doc(turno);
-  const turnSnap = await turnDocRef.get();
-  if(!turnSnap.exists) return alert('Turno no encontrado.');
+  const turnDocPath = `years/${year}/months/${month}/days/${day}/turnos/${turno}`;
+  const turnRef = doc(db, turnDocPath);
+  const turnSnap = await getDoc(turnRef);
+  if(!turnSnap.exists()) return alert('Turno no encontrado.');
   const turnData = turnSnap.data();
-  // require auth if not owner
   const isOwner = session.userId === turnData.encargadoId;
   if(!isOwner){
     const pin = prompt('PIN de Encargado/Dirección:'); if(!pin) return; const auth = await findUserByPin(pin); if(!auth || !(auth.roles.includes('encargado')||auth.roles.includes('direccion')||auth.name==='Jair Pérez')) return alert('PIN inválido.');
   } else if(!confirm('¿Deseas cerrar tu turno?')) return;
 
-  // compute final delivered from movimientos subcollection
-  const movSnap = await turnDocRef.collection('movimientos').get();
+  // compute final delivered
+  const movColl = collection(db, `${turnDocPath}/movimientos`);
+  const movSnap = await getDocs(movColl);
   let finalDelivered = 0;
-  movSnap.docs.forEach(d=>{ const m=d.data(); finalDelivered += (m.tipo==='ingreso'?m.monto:-m.monto); });
+  movSnap.docs.forEach(d=>{ const m = d.data(); finalDelivered += (m.tipo==='ingreso'?m.monto:-m.monto); });
   const closedAt = new Date().toISOString();
 
   try{
-    await turnDocRef.update({ status:'closed', closedAt, closedBy: session?session.name:'', closedDelivered: Number(finalDelivered.toFixed(2)) });
-    // optionally create a 'cierres' doc inside the same turn to snapshot totals (for quicker reports)
-    await turnDocRef.collection('cierres').doc('summary').set({ closedAt, closedBy: session?session.name:'', closedDelivered: Number(finalDelivered.toFixed(2)), finalizedAt: new Date().toISOString() });
+    await updateDoc(turnRef, { status:'closed', closedAt, closedBy: session?session.name:'', closedDelivered: Number(finalDelivered.toFixed(2)) });
+    await setDoc(doc(db, `${turnDocPath}/cierres`, 'summary'), { closedAt, closedBy: session?session.name:'', closedDelivered: Number(finalDelivered.toFixed(2)), finalizedAt: new Date().toISOString() });
     alert('Turno cerrado. Monto final entregado: ' + money(finalDelivered));
     refreshAll();
     setTimeout(()=>printTicket(),400);
@@ -708,74 +676,64 @@ async function closeTurn(){
 }
 
 async function printTicket(){
-  // find last closed turn across hierarchy: query all years/months/days is expensive; instead get today's and fallback to last known closed in collection 'years' (simple approach: search current year then month then day downward)
-  // For simplicity, we'll try to print the most recent closed turn in the current year-month-day-turns or the open one.
+  // pick most relevant turn: today's closed or open
   const now = new Date();
-  const { year, month, day } = partsFromDate(now);
-  // search today's turns first
-  const dayTurnsRef = db.collection('years').doc(year).collection('months').doc(month).collection('days').doc(day).collection('turnos');
-  const daySnapshot = await dayTurnsRef.get();
-  let candidate = null;
-  daySnapshot.docs.forEach(d=>{
-    const data = d.data();
-    if(data.status === 'closed') candidate = { id: createTurnId(now, data.shift), ...data, turnoDoc: d };
-  });
-  // if none closed today, pick the latest open
-  if(!candidate){
-    daySnapshot.docs.forEach(d=>{
-      const data = d.data();
-      if(data.status === 'open') candidate = { id: createTurnId(now, data.shift), ...data, turnoDoc: d };
-    });
-  }
-  if(!candidate) return alert('No hay turno para imprimir.');
-  const turnId = candidate.id;
-  const turno = candidate.turnoDoc.id; // e.g., 'MAT' or 'VES'
-  // get moves
-  const movSnap = await dayTurnsRef.doc(turno).collection('movimientos').orderBy('createdAt','asc').get();
-  const moves = movSnap.docs.map(d=>d.data());
-  let efectivo=0, ingresos=0, egresos=0;
-  moves.forEach(m=>{ efectivo += (m.tipo==='ingreso'?m.monto:-m.monto); if(m.tipo==='ingreso') ingresos+=m.monto; if(m.tipo==='egreso') egresos+=m.monto; });
-  const opened = new Date(candidate.openedAt || new Date());
-  const closed = candidate.closedAt ? new Date(candidate.closedAt) : new Date();
-  const diffMs = Math.max(0, closed.getTime() - opened.getTime()); const totalMin = Math.floor(diffMs/60000); const hh = Math.floor(totalMin/60); const mm = totalMin%60;
-  const hoursText = `${hh} h ${mm} min`;
-  const dots='........................................';
-  const ticketHtml = `
-  <div class="ticket" style="width:270px;padding:18px;font-family:Arial,Helvetica,sans-serif;font-weight:700;">
-    <div style="text-align:center;font-weight:800;font-size:16px">eVocal Studio</div>
-    <div style="text-align:center;font-size:12px;margin-top:6px">Corte de Caja</div>
-    <div class="dots">${dots}</div>
+  const p = partsFromDate(now);
+  const dayTurnsPath = `years/${p.year}/months/${p.month}/days/${p.day}/turnos`;
+  // fetch today's turns
+  try{
+    const turnListSnap = await getDocs(collection(db, dayTurnsPath));
+    let candidate = null;
+    turnListSnap.docs.forEach(d=>{ const data=d.data(); if(data.status==='closed') candidate = { id: createTurnId(now,data.shift), data, ref:d.ref }; });
+    if(!candidate) turnListSnap.docs.forEach(d=>{ const data=d.data(); if(data.status==='open') candidate = { id: createTurnId(now,data.shift), data, ref:d.ref }; });
+    if(!candidate) return alert('No hay turno para imprimir.');
+    const turnId = candidate.id;
+    const turno = candidate.ref.id;
+    const movSnap = await getDocs(collection(db, `${dayTurnsPath}/${turno}/movimientos`));
+    const moves = movSnap.docs.map(d=>d.data());
+    let efectivo=0, ingresos=0, egresos=0;
+    moves.forEach(m=>{ efectivo += (m.tipo==='ingreso'?m.monto:-m.monto); if(m.tipo==='ingreso') ingresos+=m.monto; if(m.tipo==='egreso') egresos+=m.monto; });
+    const opened = new Date(candidate.data.openedAt || new Date());
+    const closed = candidate.data.closedAt ? new Date(candidate.data.closedAt) : new Date();
+    const diffMs = Math.max(0, closed.getTime() - opened.getTime()); const totalMin = Math.floor(diffMs/60000); const hh = Math.floor(totalMin/60); const mm = totalMin%60;
+    const hoursText = `${hh} h ${mm} min`;
+    const dots='........................................';
+    const ticketHtml = `
+    <div class="ticket" style="width:270px;padding:18px;font-family:Arial,Helvetica,sans-serif;font-weight:700;">
+      <div style="text-align:center;font-weight:800;font-size:16px">eVocal Studio</div>
+      <div style="text-align:center;font-size:12px;margin-top:6px">Corte de Caja</div>
+      <div class="dots">${dots}</div>
 
-    <div style="font-size:13px">Fecha: <strong>${turnId.slice(0,2)}/${turnId.slice(2,4)}/${turnId.slice(4,8)}</strong></div>
-    <div style="font-size:13px">Turno: <strong>${candidate.shift==='M'?'Matutino':'Vespertino'}</strong></div>
-    <div class="dots">${dots}</div>
+      <div style="font-size:13px">Fecha: <strong>${turnId.slice(0,2)}/${turnId.slice(2,4)}/${turnId.slice(4,8)}</strong></div>
+      <div style="font-size:13px">Turno: <strong>${candidate.data.shift==='M'?'Matutino':'Vespertino'}</strong></div>
+      <div class="dots">${dots}</div>
 
-    <div style="margin-top:6px; font-weight:700;">
-      ${moves.map(m=>`<div style="display:flex;justify-content:space-between;padding:10px 0;font-weight:700"><div style="max-width:160px;text-align:left">${m.concepto}</div><div style="min-width:90px;text-align:${m.tipo==='ingreso'?'right':'left'}">${m.tipo==='ingreso'? '+' : '-'} ${money(m.monto)}</div></div>`).join('')}
-    </div>
+      <div style="margin-top:6px; font-weight:700;">
+        ${moves.map(m=>`<div style="display:flex;justify-content:space-between;padding:10px 0;font-weight:700"><div style="max-width:160px;text-align:left">${m.concepto}</div><div style="min-width:90px;text-align:${m.tipo==='ingreso'?'right':'left'}">${m.tipo==='ingreso'? '+' : '-'} ${money(m.monto)}</div></div>`).join('')}
+      </div>
 
-    <div class="dots">${dots}</div>
+      <div class="dots">${dots}</div>
 
-    <div style="display:flex;justify-content:space-between;font-weight:800;padding:8px 0;font-size:13px"><div>Total efectivo</div><div>${money(efectivo)}</div></div>
-    <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px"><div><strong>Total ingresos</strong></div><div>${money(ingresos)}</div></div>
-    <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px"><div><strong>Total egresos</strong></div><div>${money(egresos)}</div></div>
+      <div style="display:flex;justify-content:space-between;font-weight:800;padding:8px 0;font-size:13px"><div>Total efectivo</div><div>${money(efectivo)}</div></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px"><div><strong>Total ingresos</strong></div><div>${money(ingresos)}</div></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px"><div><strong>Total egresos</strong></div><div>${money(egresos)}</div></div>
 
-    <div class="dots">${dots}</div>
-    <div style="font-size:13px;font-weight:800">Horas abiertas de la caja: <strong>${hoursText}</strong></div>
+      <div class="dots">${dots}</div>
+      <div style="font-size:13px;font-weight:800">Horas abiertas de la caja: <strong>${hoursText}</strong></div>
 
-    <div style="margin-top:28px;text-align:center">
-      <div class="signature-line"></div>
-      <div class="centered-caption">Entregado por</div>
-    </div>
+      <div style="margin-top:28px;text-align:center">
+        <div class="signature-line"></div>
+        <div class="centered-caption">Entregado por</div>
+      </div>
 
-    <div style="margin-top:36px;text-align:center">
-      <div class="signature-line"></div>
-      <div class="centered-caption">Recibido por</div>
-    </div>
+      <div style="margin-top:36px;text-align:center">
+        <div class="signature-line"></div>
+        <div class="centered-caption">Recibido por</div>
+      </div>
 
-    <div class="dots" style="margin-top:12px">${dots}</div>
+      <div class="dots" style="margin-top:12px">${dots}</div>
 
-    <div class="footer-legal">
+      <div class="footer-legal">
 eVocal Studio
 
 Declaración de Responsabilidad y Confidencialidad
@@ -789,15 +747,16 @@ Reconozco que cualquier diferencia detectada en los montos, movimientos irregula
 Este documento constituye un acuerdo de confidencialidad y responsabilidad administrativa, y su firma acredita la correcta entrega y recepción de los valores, así como el cumplimiento de las obligaciones operativas del puesto.
 
 Uso exclusivo de eVocal Studio.
-    </div>
-  </div>`;
-  const w = window.open('','ticketPrint'); w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Ticket</title><style>body{font-family:Arial;margin:0;padding:8px}.ticket{width:270px;padding:12px}.dots{text-align:center;color:#666;letter-spacing:1px;margin:8px 0}</style></head><body>');
-  w.document.write(ticketHtml); w.document.close(); setTimeout(()=>w.print(),400);
+      </div>
+    </div>`;
+    const w = window.open('','ticketPrint'); w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Ticket</title><style>body{font-family:Arial;margin:0;padding:8px}.ticket{width:270px;padding:12px}.dots{text-align:center;color:#666;letter-spacing:1px;margin:8px 0}</style></head><body>');
+    w.document.write(ticketHtml); w.document.close(); setTimeout(()=>w.print(),400);
+  }catch(e){
+    console.error('Error obteniendo turno para imprimir', e); alert('No se pudo obtener turno para imprimir.');
+  }
 }
 
-/* ===========================
-   Denominations (save under denoms subcollection)
-   =========================== */
+/* Denominations */
 async function calculateDenominations(){
   const v1000 = parseInt(document.getElementById('d1000')?.value)||0;
   const v500 = parseInt(document.getElementById('d500')?.value)||0;
@@ -815,7 +774,7 @@ async function calculateDenominations(){
   let declared = 0;
   if(session && session.turnId){
     const day = session.turnId.slice(0,2), month = session.turnId.slice(2,4), year = session.turnId.slice(4,8), turno = session.turnId.slice(8);
-    const movSnap = await db.collection('years').doc(year).collection('months').doc(month).collection('days').doc(day).collection('turnos').doc(turno).collection('movimientos').get();
+    const movSnap = await getDocs(collection(db, `years/${year}/months/${month}/days/${day}/turnos/${turno}/movimientos`));
     movSnap.docs.forEach(d=>{ const m = d.data(); declared += (m.tipo==='ingreso'?m.monto:-m.monto); });
   }
   document.getElementById('efectivoDeclarado') && (document.getElementById('efectivoDeclarado').innerText = money(declared));
@@ -827,98 +786,80 @@ async function saveDenominations(){
   const total = await calculateDenominations();
   const day = session.turnId.slice(0,2), month = session.turnId.slice(2,4), year = session.turnId.slice(4,8), turno = session.turnId.slice(8);
   try{
-    await db.collection('years').doc(year).collection('months').doc(month).collection('days').doc(day).collection('turnos').doc(turno).collection('denoms').doc('count').set({ total, savedAt: new Date().toISOString(), by: session?session.name:'-' });
+    await setDoc(doc(db, `years/${year}/months/${month}/days/${day}/turnos/${turno}/denoms`, 'count'), { total, savedAt: new Date().toISOString(), by: session?session.name:'-' });
     alert('Conteo guardado.');
   }catch(e){ console.warn('No se pudo guardar conteo', e); alert('No se pudo guardar conteo en la nube.'); }
 }
 
-/* ===========================
-   Reset general (master pin 1417) - deletes subcollections (careful)
-   =========================== */
+/* Reset general (master pin 1417) */
 async function resetGeneral(){
   const pin = prompt('Reset general — ingresa PIN maestro:');
   if(!pin) return; if(pin !== '1417') return alert('PIN maestro inválido.');
   if(!confirm('Confirmar Reset General: se BORRARÁN movimientos, ventas y cierres. Esta acción NO puede deshacerse.')) return;
-
   try{
-    // WARNING: Firestore doesn't have easy batch delete for nested collections; we'll list years->months->days->turnos and delete documents inside subcollections
-    const yearsSnap = await db.collection('years').get();
-    const batch = db.batch();
+    // Delete by iterating the tree (careful with large data)
+    const yearsSnap = await getDocs(collection(db,'years'));
     for(const ydoc of yearsSnap.docs){
-      const monthsSnap = await ydoc.ref.collection('months').get();
+      const monthsSnap = await getDocs(collection(db, `years/${ydoc.id}/months`));
       for(const mdoc of monthsSnap.docs){
-        const daysSnap = await mdoc.ref.collection('days').get();
+        const daysSnap = await getDocs(collection(db, `years/${ydoc.id}/months/${mdoc.id}/days`));
         for(const ddoc of daysSnap.docs){
-          const turnosSnap = await ddoc.ref.collection('turnos').get();
+          const turnosSnap = await getDocs(collection(db, `years/${ydoc.id}/months/${mdoc.id}/days/${ddoc.id}/turnos`));
           for(const tdoc of turnosSnap.docs){
-            // delete subcollections: movimientos, ventas, denoms, cierres summary
-            const movs = await tdoc.ref.collection('movimientos').get();
-            movs.docs.forEach(md=> batch.delete(md.ref));
-            const vts = await tdoc.ref.collection('ventas').get();
-            vts.docs.forEach(md=> batch.delete(md.ref));
-            const den = await tdoc.ref.collection('denoms').get();
-            den.docs.forEach(md=> batch.delete(md.ref));
-            const csum = await tdoc.ref.collection('cierres').get();
-            csum.docs.forEach(md=> batch.delete(md.ref));
-            // finally delete the turno doc itself
-            batch.delete(tdoc.ref);
+            const movs = await getDocs(collection(db, `years/${ydoc.id}/months/${mdoc.id}/days/${ddoc.id}/turnos/${tdoc.id}/movimientos`));
+            for(const md of movs.docs) await deleteDoc(md.ref);
+            const vts = await getDocs(collection(db, `years/${ydoc.id}/months/${mdoc.id}/days/${ddoc.id}/turnos/${tdoc.id}/ventas`));
+            for(const vd of vts.docs) await deleteDoc(vd.ref);
+            const den = await getDocs(collection(db, `years/${ydoc.id}/months/${mdoc.id}/days/${ddoc.id}/turnos/${tdoc.id}/denoms`));
+            for(const dd of den.docs) await deleteDoc(dd.ref);
+            const csum = await getDocs(collection(db, `years/${ydoc.id}/months/${mdoc.id}/days/${ddoc.id}/turnos/${tdoc.id}/cierres`));
+            for(const cd of csum.docs) await deleteDoc(cd.ref);
+            await deleteDoc(tdoc.ref);
           }
-          // optionally delete day doc
-          batch.delete(ddoc.ref);
+          await deleteDoc(ddoc.ref);
         }
-        batch.delete(mdoc.ref);
+        await deleteDoc(mdoc.ref);
       }
-      batch.delete(ydoc.ref);
+      await deleteDoc(ydoc.ref);
     }
-    await batch.commit();
     alert('Reset general realizado. Movimientos, ventas y cierres eliminados en Firestore.');
     refreshAll();
-  }catch(e){
-    console.error('Error reset general', e); alert('No se pudo realizar reset general.');
-  }
+  }catch(e){ console.error('Error reset general', e); alert('No se pudo realizar reset general.'); }
 }
 
-/* ===========================
-   Reports (daily/monthly/annual) - visual HTML
-   =========================== */
+/* Reports (daily/monthly/annual) */
 async function exportDailyReport(){
   const id = prompt('Reporte diario - ingresa ID de turno (DDMMAAAATURNO) o deja vacío para el último cerrado del día:');
   let turnDoc = null;
   if(id){
     const day = id.slice(0,2), month = id.slice(2,4), year = id.slice(4,8), turno = id.slice(8);
-    const docRef = db.collection('years').doc(year).collection('months').doc(month).collection('days').doc(day).collection('turnos').doc(turno);
-    const snap = await docRef.get();
-    if(!snap.exists) return alert('Turno no encontrado.');
-    turnDoc = { id, ...snap.data(), ref: docRef };
+    turnDoc = { id, ref: doc(db, `years/${year}/months/${month}/days/${day}/turnos/${turno}`), data: (await getDoc(doc(db, `years/${year}/months/${month}/days/${day}/turnos/${turno}`))).data() };
+    if(!turnDoc.data) return alert('Turno no encontrado.');
   } else {
-    // find most recent closed across today
     const now = new Date();
     const { year, month, day } = partsFromDate(now);
-    const dayTurnsRef = db.collection('years').doc(year).collection('months').doc(month).collection('days').doc(day).collection('turnos');
-    const snap = await dayTurnsRef.get();
+    const turnsColl = collection(db, `years/${year}/months/${month}/days/${day}/turnos`);
+    const snap = await getDocs(turnsColl);
     if(snap.empty) return alert('No hay turnos hoy.');
     let closed = null;
-    snap.docs.forEach(d=>{ const data=d.data(); if(data.status==='closed') closed = { id:createTurnId(now,data.shift), ...data, ref: d.ref }; });
-    if(!closed){
-      // fallback to open
-      snap.docs.forEach(d=>{ const data=d.data(); if(data.status==='open') closed = { id:createTurnId(now,data.shift), ...data, ref: d.ref }; });
-    }
+    snap.docs.forEach(d=>{ const data=d.data(); if(data.status==='closed') closed = { id:createTurnId(now,data.shift), data, ref:d.ref }; });
+    if(!closed) snap.docs.forEach(d=>{ const data=d.data(); if(data.status==='open') closed = { id:createTurnId(now,data.shift), data, ref:d.ref }; });
     if(!closed) return alert('No hay turnos disponibles.');
     turnDoc = closed;
   }
-  // get moves under this turn doc
-  const movSnap = await turnDoc.ref.collection('movimientos').orderBy('createdAt','asc').get();
+  // get movements
+  const movSnap = await getDocs(collection(turnDoc.ref, 'movimientos'));
   const moves = movSnap.docs.map(d=>d.data());
   const ingresos = moves.filter(m=>m.tipo==='ingreso').reduce((s,m)=>s+m.monto,0);
   const egresos = moves.filter(m=>m.tipo==='egreso').reduce((s,m)=>s+m.monto,0);
   const balance = ingresos - egresos;
-  const opened = new Date(turnDoc.openedAt); const closed = turnDoc.closedAt ? new Date(turnDoc.closedAt) : new Date();
+  const opened = new Date(turnDoc.data.openedAt); const closed = turnDoc.data.closedAt ? new Date(turnDoc.data.closedAt) : new Date();
   const diffMs = Math.max(0, closed.getTime() - opened.getTime()); const totalMin = Math.floor(diffMs/60000); const hh = Math.floor(totalMin/60); const mm = totalMin%60;
   const hoursText = `${hh}h ${mm}m`;
   let html = `<!doctype html><html><head><meta charset="utf-8"><title>Reporte Diario ${turnDoc.id}</title><style>body{font-family:Arial;padding:18px;color:#111}table{width:100%;border-collapse:collapse}th,td{padding:8px;border:1px solid #ddd;text-align:left}th{background:#f0f0f0}</style></head><body>`;
   html += `<h2>Reporte Diario — Turno ${turnDoc.id}</h2>`;
-  html += `<div>Encargado: <strong>${turnDoc.encargadoName}</strong> — Turno: ${turnDoc.shift==='M'?'Matutino':'Vespertino'}</div>`;
-  html += `<div>Abierto: ${turnDoc.openedAt ? new Date(turnDoc.openedAt).toLocaleString() : '-'} ${turnDoc.closedAt? ' — Cerrado: ' + new Date(turnDoc.closedAt).toLocaleString() : ''}</div>`;
+  html += `<div>Encargado: <strong>${turnDoc.data.encargadoName}</strong> — Turno: ${turnDoc.data.shift==='M'?'Matutino':'Vespertino'}</div>`;
+  html += `<div>Abierto: ${turnDoc.data.openedAt ? new Date(turnDoc.data.openedAt).toLocaleString() : '-'} ${turnDoc.data.closedAt? ' — Cerrado: ' + new Date(turnDoc.data.closedAt).toLocaleString() : ''}</div>`;
   html += `<div style="margin-top:8px;font-weight:700">Horas abiertas: ${hoursText}</div>`;
   html += `<h3 style="margin-top:14px">Resumen</h3>`;
   html += `<table><tr><th>Total ingresos</th><th>Total egresos</th><th>Balance</th><th>Movimientos</th></tr>`;
@@ -934,15 +875,13 @@ async function exportMonthlyReport(){
   const ym = prompt('Reporte mensual - ingresa YYYY-MM (vacío = mes actual)');
   const target = ym ? new Date(ym+'-01T00:00:00') : new Date();
   if(isNaN(target.getTime())) return alert('Formato inválido.');
-  const month = target.getMonth()+1; const year = target.getFullYear();
-  // collect all days in that month under paths
-  const monthsRef = db.collection('years').doc(String(year)).collection('months').doc(String(String(month).padStart(2,'0'))).collection('days');
-  const daysSnap = await monthsRef.get();
+  const month = String(target.getMonth()+1).padStart(2,'0'); const year = String(target.getFullYear());
+  const daysSnap = await getDocs(collection(db, `years/${year}/months/${month}/days`));
   let included = [];
   for(const ddoc of daysSnap.docs){
-    const turnos = await ddoc.ref.collection('turnos').get();
-    for(const tdoc of turnos.docs){
-      const movs = await tdoc.ref.collection('movimientos').get();
+    const turnosSnap = await getDocs(collection(db, `years/${year}/months/${month}/days/${ddoc.id}/turnos`));
+    for(const tdoc of turnosSnap.docs){
+      const movs = await getDocs(collection(db, `years/${year}/months/${month}/days/${ddoc.id}/turnos/${tdoc.id}/movimientos`));
       movs.docs.forEach(md=> included.push(md.data()));
     }
   }
@@ -951,7 +890,7 @@ async function exportMonthlyReport(){
   const egresos = included.filter(m=>m.tipo==='egreso').reduce((s,m)=>s+m.monto,0);
   const balance = ingresos - egresos;
   let html = `<!doctype html><html><head><meta charset="utf-8"><title>Reporte mensual ${month}-${year}</title><style>body{font-family:Arial;padding:18px;color:#111}table{width:100%;border-collapse:collapse}th,td{padding:8px;border:1px solid #ddd;text-align:left}th{background:#f0f0f0}</style></head><body>`;
-  html += `<h2>Reporte Mensual — ${String(month).padStart(2,'0')}/${year}</h2>`;
+  html += `<h2>Reporte Mensual — ${month}/${year}</h2>`;
   html += `<table><tr><th>Total ingresos</th><th>Total egresos</th><th>Balance</th><th>Movimientos</th></tr>`;
   html += `<tr><td>${money(ingresos)}</td><td>${money(egresos)}</td><td>${money(balance)}</td><td>${included.length}</td></tr></table>`;
   html += `<div style="margin-top:12px;color:#666;font-size:12px">Generado: ${new Date().toLocaleString()}</div></body></html>`;
@@ -960,16 +899,15 @@ async function exportMonthlyReport(){
 
 async function exportAnnualReport(){
   const yy = prompt('Reporte anual - ingresa YYYY (vacío = año actual)');
-  const year = yy ? parseInt(yy) : new Date().getFullYear();
-  if(isNaN(year)) return alert('Año inválido.');
-  const monthsSnap = await db.collection('years').doc(String(year)).collection('months').get();
+  const year = yy ? String(yy) : String(new Date().getFullYear());
+  const monthsSnap = await getDocs(collection(db, `years/${year}/months`));
   let included = [];
   for(const mdoc of monthsSnap.docs){
-    const daysSnap = await mdoc.ref.collection('days').get();
+    const daysSnap = await getDocs(collection(db, `years/${year}/months/${mdoc.id}/days`));
     for(const ddoc of daysSnap.docs){
-      const turnosSnap = await ddoc.ref.collection('turnos').get();
+      const turnosSnap = await getDocs(collection(db, `years/${year}/months/${mdoc.id}/days/${ddoc.id}/turnos`));
       for(const tdoc of turnosSnap.docs){
-        const movs = await tdoc.ref.collection('movimientos').get();
+        const movs = await getDocs(collection(db, `years/${year}/months/${mdoc.id}/days/${ddoc.id}/turnos/${tdoc.id}/movimientos`));
         movs.docs.forEach(md=> included.push(md.data()));
       }
     }
@@ -986,19 +924,18 @@ async function exportAnnualReport(){
   const w = window.open('','repyear'); w.document.write(html); w.document.close();
 }
 
-/* ===========================
-   Users & forgot flow
-   =========================== */
+/* Users & forgot */
 async function createUser(){
   const name=document.getElementById('newName').value.trim(); const role=document.getElementById('newRole').value; const pin=document.getElementById('newPin').value.trim();
   if(!name||!pin) return alert('Nombre y PIN son requeridos.'); if(!/^\d{4,8}$/.test(pin)) return alert('PIN debe ser numérico (4-8 dígitos).');
-  const snap = await db.collection('users').where('name','==',name).limit(1).get();
+  const q = query(collection(db,'users'), where('name','==',name));
+  const snap = await getDocs(q);
   if(!snap.empty) return alert('Ya existe usuario con ese nombre.');
-  try{ await db.collection('users').add({ name, roles:[role], pin }); document.getElementById('newName').value=''; document.getElementById('newPin').value=''; loadUsers(); alert('Usuario creado.'); }catch(e){ console.error('Error creando usuario', e); alert('No se pudo crear usuario.'); }
+  try{ await addDoc(collection(db,'users'), { name, roles:[role], pin }); document.getElementById('newName').value=''; document.getElementById('newPin').value=''; loadUsers(); alert('Usuario creado.'); }catch(e){ console.error('Error creando usuario', e); alert('No se pudo crear usuario.'); }
 }
 
 async function loadUsers(){
-  const snap = await db.collection('users').get();
+  const snap = await getDocs(collection(db,'users'));
   const users = snap.docs.map(d=>({ id:d.id, ...d.data() }));
   const el=document.getElementById('usersList');
   el.innerHTML = users.map(u=>`<div style="padding:8px;border-bottom:1px dashed ${getComputedStyle(document.documentElement).getPropertyValue('--border')}"><strong>${u.name}</strong><div class="small-muted">${(u.roles||[]).join(', ')}</div></div>`).join('')||'<em>No hay usuarios</em>';
@@ -1009,18 +946,17 @@ async function requestForgot(){
   const name=document.getElementById('forgotName').value.trim();
   const reason=document.getElementById('forgotReason').value.trim();
   if(!name||!reason) return alert('Completa campos.');
-  const snap = await db.collection('users').where('name','==',name).limit(1).get();
+  const q = query(collection(db,'users'), where('name','==',name));
+  const snap = await getDocs(q);
   if(snap.empty) return alert('Usuario no encontrado.');
   const u = snap.docs[0].data();
   const req = { userId: snap.docs[0].id, userName: u.name, reason, requestedBy: u.name, ts: new Date().toISOString(), type:'forgot' };
-  try{ await db.collection('reset_requests').add(req); document.getElementById('forgotName').value=''; document.getElementById('forgotReason').value=''; loadResetRequests(); alert('Solicitud enviada.'); }catch(e){ console.error('Error request forgot', e); alert('No se pudo enviar solicitud.'); }
+  try{ await addDoc(collection(db,'reset_requests'), req); document.getElementById('forgotName').value=''; document.getElementById('forgotReason').value=''; loadResetRequests(); alert('Solicitud enviada.'); }catch(e){ console.error('Error request forgot', e); alert('No se pudo enviar solicitud.'); }
 }
-async function loadResetRequests(){ const snap = await db.collection('reset_requests').get(); const reqs = snap.docs.map(d=>({ id:d.id, ...d.data() })); const el=document.getElementById('resetRequests'); if(reqs.length===0) el.innerHTML='<em>Sin solicitudes</em>'; else el.innerHTML = reqs.map(r=>`<div style="padding:8px;border-bottom:1px dashed ${getComputedStyle(document.documentElement).getPropertyValue('--border')}"><strong>${r.userName}</strong> — ${r.type}<div class="small-muted">Solicitado: ${new Date(r.ts).toLocaleString()}</div></div>`).join(''); }
+async function loadResetRequests(){ const snap = await getDocs(collection(db,'reset_requests')); const reqs = snap.docs.map(d=>({ id:d.id, ...d.data() })); const el=document.getElementById('resetRequests'); if(reqs.length===0) el.innerHTML='<em>Sin solicitudes</em>'; else el.innerHTML = reqs.map(r=>`<div style="padding:8px;border-bottom:1px dashed ${getComputedStyle(document.documentElement).getPropertyValue('--border')}"><strong>${r.userName}</strong> — ${r.type}<div class="small-muted">Solicitado: ${new Date(r.ts).toLocaleString()}</div></div>`).join(''); }
 loadResetRequests();
 
-/* ===========================
-   UI helpers, countdown & init
-   =========================== */
+/* Countdown */
 function msUntil(target){ return Math.max(0, new Date(target).getTime() - new Date().getTime()); }
 function formatRemaining(ms){ const totalMin = Math.floor(ms/60000); const h=Math.floor(totalMin/60); const m = totalMin%60; return `${h}h ${m}m`; }
 function updateCountdown(){
@@ -1032,45 +968,43 @@ function updateCountdown(){
 }
 setInterval(updateCountdown,1000); updateCountdown();
 
+/* Refresh history */
 async function refreshTurnHistory(){
-  // show recent turns (search current year)
   const now = new Date();
   const { year } = partsFromDate(now);
-  const monthsSnap = await db.collection('years').doc(year).collection('months').get();
+  const monthsSnap = await getDocs(collection(db, `years/${year}/months`));
   let turns = [];
   for(const mdoc of monthsSnap.docs){
-    const daysSnap = await mdoc.ref.collection('days').get();
+    const daysSnap = await getDocs(collection(db, `years/${year}/months/${mdoc.id}/days`));
     for(const ddoc of daysSnap.docs){
-      const turnosSnap = await ddoc.ref.collection('turnos').get();
+      const turnosSnap = await getDocs(collection(db, `years/${year}/months/${mdoc.id}/days/${ddoc.id}/turnos`));
       for(const tdoc of turnosSnap.docs){
         const data = tdoc.data();
-        const tid = `${ddoc.id}${mdoc.id}${year}${tdoc.id}`; // day,month,year,turno e.g., 10 11 2025 MAT -> 10112025MAT
+        const tid = `${ddoc.id}${mdoc.id}${year}${tdoc.id}`;
         turns.push({ id: tid, ...data, ref: tdoc.ref });
       }
     }
   }
-  // sort by openedAt desc
   turns.sort((a,b)=> new Date(b.openedAt || 0) - new Date(a.openedAt || 0));
   const el = document.getElementById('turnHistory');
   if(turns.length===0){ el.innerHTML='<em>No hay turnos</em>'; return; }
   el.innerHTML = turns.map(t=>`<div style="padding:8px;border-bottom:1px dashed ${getComputedStyle(document.documentElement).getPropertyValue('--border')};"><div style="display:flex;justify-content:space-between"><div><strong>${t.id}</strong> — ${t.shift==='M'?'Matutino':'Vespertino'}</div><div>${(t.status||'').toUpperCase()}</div></div><div class="small-muted">Encargado: ${t.encargadoName} — Abierto: ${t.openedAt?new Date(t.openedAt).toLocaleString():''} ${t.closedAt? ' — Cerrado: ' + new Date(t.closedAt).toLocaleString():''}</div></div>`).join('');
 }
 
-/* exports / CSV */
+/* CSV export (simple) */
 async function exportCSV(){
-  // gather all turns and moves
-  const yearsSnap = await db.collection('years').get();
+  const yearsSnap = await getDocs(collection(db,'years'));
   let rows = ['turnId,turnDate,shift,encargado,moveId,type,concept,amount,createdBy,createdAt'];
   for(const ydoc of yearsSnap.docs){
-    const monthsSnap = await ydoc.ref.collection('months').get();
+    const monthsSnap = await getDocs(collection(db, `years/${ydoc.id}/months`));
     for(const mdoc of monthsSnap.docs){
-      const daysSnap = await mdoc.ref.collection('days').get();
+      const daysSnap = await getDocs(collection(db, `years/${ydoc.id}/months/${mdoc.id}/days`));
       for(const ddoc of daysSnap.docs){
-        const turnosSnap = await ddoc.ref.collection('turnos').get();
+        const turnosSnap = await getDocs(collection(db, `years/${ydoc.id}/months/${mdoc.id}/days/${ddoc.id}/turnos`));
         for(const tdoc of turnosSnap.docs){
           const data = tdoc.data();
           const tid = `${ddoc.id}${mdoc.id}${ydoc.id}${tdoc.id}`;
-          const movSnap = await tdoc.ref.collection('movimientos').get();
+          const movSnap = await getDocs(collection(db, `years/${ydoc.id}/months/${mdoc.id}/days/${ddoc.id}/turnos/${tdoc.id}/movimientos`));
           if(movSnap.empty) rows.push(`${tid},${data.openedAt||''},${data.shift},${data.encargadoName},,,,,,`);
           else movSnap.docs.forEach(m=> rows.push([tid,data.openedAt,data.shift,data.encargadoName,m.id,m.data().tipo,`"${(m.data().concepto||'').replace(/"/g,'""')}"`,m.data().monto,m.data().creatorName,m.data().createdAt].join(',')));
         }
@@ -1081,7 +1015,7 @@ async function exportCSV(){
   const a=document.createElement('a'); a.href=url; a.download='caja_export.csv'; document.body.appendChild(a); a.click(); a.remove();
 }
 
-/* UI sums and final helpers */
+/* UI helpers */
 function updateSums(ef,ing,egr,balance){ document.getElementById('sumEfectivo').innerText = money(ef); document.getElementById('sumIngresos').innerText = money(ing); document.getElementById('sumEgresos').innerText = money(egr); document.getElementById('sumBalance').innerText = money(balance); }
 
 function updateUIForSession(){
@@ -1114,7 +1048,6 @@ function updateUIForSession(){
 async function refreshAll(){
   displayShift();
   if(session && session.turnId) {
-    // ensure subscription active
     if(!movementsUnsub) subscribeRealtime(session.turnId);
   }
   await refreshTurnHistory();
@@ -1122,12 +1055,13 @@ async function refreshAll(){
   loadResetRequests();
 }
 
-/* helpers */
+/* small helpers */
 function simulateTime(){ const v=prompt('Ingresa fecha-hora ISO (ej: 2025-11-06T10:00) o vacío para real'); if(v) alert('La aplicación usa la hora local del equipo. Simulación solo informativa.'); }
 function goToForgot(){ tabs.forEach(t=>t.classList.remove('active')); document.querySelector('.tab[data-tab="forgot"]').classList.add('active'); document.getElementById('tab-access').style.display='none'; document.getElementById('tab-forgotCard').style.display=''; }
 
 /* init */
 updateUIForSession();
+console.log('Interfaz lista. Sirve por HTTP para que Firebase funcione correctamente.');
 </script>
 </body>
 </html>
