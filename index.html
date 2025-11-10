@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>eVocal Studio V4</title>
+<title>eVocal Studio — Caja V4</title>
+
 <style>
 :root{
   --paper-width:72mm;
@@ -35,14 +36,14 @@ input,select,textarea{width:100%;padding:10px;border:1px solid var(--border);bor
 .link-btn{background:transparent;border:1px dashed var(--border);padding:8px;border-radius:8px;cursor:pointer;color:var(--muted)}
 .small-muted{color:var(--muted);font-size:13px}
 .mov-list{max-height:360px;overflow:auto;border-radius:8px;border:1px solid var(--border);padding:8px;background:#fff}
-.mov-row{display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px dashed var(--border)}
+.mov-row{display:flex;justify-content:space-between;align-items:center;padding:12px;border-bottom:1px dashed var(--border)}
 .mov-head{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;font-weight:800;border-bottom:1px solid var(--border);margin-bottom:8px;color:var(--accent)}
-.ticket{width:var(--paper-width);background:#fff;padding:16px;margin:14px auto;border-radius:8px;border:1px solid #ddd;font-family:Arial,Helvetica,sans-serif}
+.ticket{width:var(--paper-width);background:#fff;padding:18px;margin:14px auto;border-radius:10px;border:1px solid #ddd;font-family:Arial,Helvetica,sans-serif}
 .ticket *{color:#000}
 .dots{text-align:center;color:#444;letter-spacing:1px;margin:10px 0;font-size:12px}
 .footer-legal{font-size:9px;color:#444;white-space:pre-wrap;margin-top:10px}
-.signature-line{width:90%;border-bottom:3px solid #000;height:2px;margin:6px auto}
-.centered-caption{text-align:center;font-size:12px;color:#444}
+.signature-line{width:80%;border-bottom:3px solid #000;height:2px;margin:12px auto}
+.centered-caption{text-align:center;font-size:12px;color:#444;margin-top:6px}
 @media print{
   body{background:transparent}
   .tabs,.header,.container .card .button,.link-btn,.users-list,.mov-list{display:none}
@@ -54,13 +55,13 @@ input,select,textarea{width:100%;padding:10px;border:1px solid var(--border);bor
 <body>
   <div class="header">
     <div>
-      <div class="brand">eVocal Studio V4</div>
+      <div class="brand">eVocal Studio</div>
       <div class="meta small-muted" id="currentShiftDisplay">—</div>
     </div>
     <div style="text-align:right">
       <div id="userDisplay" class="small-muted">No autenticado</div>
       <div id="shiftTimer" class="small-muted">—</div>
-      <div id="sessionActions" style="margin-top:6px"></div>
+      <div id="sessionActions" style="margin-top:8px"></div>
     </div>
   </div>
 
@@ -166,7 +167,7 @@ input,select,textarea{width:100%;padding:10px;border:1px solid var(--border);bor
             </div>
             <div style="display:flex;gap:8px">
               <button class="button" onclick="registerSale({card:false})">Registrar e imprimir (Efectivo)</button>
-              <button class="button" onclick="registerSale({card:true})">Registrar e imprimir (Tarjeta)</button>
+              <button class="button" onclick="registerSale({card:true})">Imprimir (Tarjeta)</button>
               <button class="link-btn" onclick="clearSaleForm()">Limpiar</button>
             </div>
             <div class="small-muted">El monto ingresado incluye IVA (16%). El descuento se aplica sobre la base antes de IVA.</div>
@@ -269,10 +270,13 @@ input,select,textarea{width:100%;padding:10px;border:1px solid var(--border);bor
    Firebase modular imports
    =========================== */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, addDoc, onSnapshot, orderBy, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import {
+  getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, addDoc,
+  onSnapshot, orderBy, updateDoc, deleteDoc
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 /* ===========================
-   Firebase config (tú pediste usar tu config)
+   Firebase config (usando tu config)
    =========================== */
 const firebaseConfig = {
   apiKey: "AIzaSyDtMNrHgn9rK329qMNVWoj7TDVJ-RdtYnQ",
@@ -317,7 +321,7 @@ function docRefForTurnId(turnId){
 }
 
 /* ===========================
-   Seed users (only if none) - lightweight
+   Seed users (only if none)
    =========================== */
 async function ensureUsersSeed(){
   const q = query(collection(db,'users'), where('name','!=',''));
@@ -337,7 +341,7 @@ ensureUsersSeed();
 let session = null;
 function detectShift(dt=new Date()){
   const h = dt.getHours();
-  // según tu última instrucción: Matutino 9-15, Vespertino 15-21
+  // Matutino 09:00–15:00, Vespertino 15:00–21:00
   if(h>=9 && h<15) return 'M';
   if(h>=15 && h<21) return 'V';
   return null;
@@ -475,7 +479,7 @@ function subscribeRealtime(turnId){
   const vColl = collection(db, `years/${year}/months/${month}/days/${day}/turnos/${turno}/ventas`);
   const qV = query(vColl, orderBy('createdAt','desc'));
   ventasUnsub = onSnapshot(qV, snap=>{
-    // for future UI updates; we refresh history
+    // for UI updates; refresh history
     refreshTurnHistory();
   });
 }
@@ -493,7 +497,7 @@ async function addMovement(){
   let protectedFlag = false;
   if(concepto==='Otro'){ const c=document.getElementById('movConceptoCustom').value.trim(); if(!c) return alert('Escribe el concepto personalizado.'); concepto=c; protectedFlag=true; alert('⚠️ Movimiento "Otro": solo podrá editarse, no eliminarse.'); }
   const montoRaw = parseFloat(document.getElementById('movMonto').value) || 0;
-  const monto = Number(montoRaw.toFixed(2));
+  const monto = Number(Math.round(montoRaw));
   if(monto<=0) return alert('Monto inválido.');
   const nota = document.getElementById('movNota').value.trim();
 
@@ -530,11 +534,11 @@ async function editMovement(id){
   if(!snap.exists()) return alert('Movimiento no encontrado.');
   const m = snap.data();
   if(!(session && (session.userId===m.createdBy || session.name==='Jair Pérez' || (session.roles && session.roles.includes('direccion'))))) return alert('No tienes permiso para editar.');
-  const newMonto = parseFloat(prompt('Nuevo monto', m.monto)) || m.monto;
+  const newMonto = Math.round(parseFloat(prompt('Nuevo monto', m.monto)) || m.monto);
   const newNota = prompt('Nueva nota', m.nota || '') || m.nota;
   const newConcept = prompt('Nuevo concepto', m.concepto) || m.concepto;
   try{
-    await updateDoc(doc(db, docPath), { monto: Number(newMonto.toFixed(2)), nota:newNota, concepto:newConcept });
+    await updateDoc(doc(db, docPath), { monto: Number(newMonto), nota:newNota, concepto:newConcept });
     refreshTurnHistory();
   }catch(e){ console.error('Error editando movimiento', e); alert('No se pudo editar.'); }
 }
@@ -567,11 +571,11 @@ async function registerSale(opts){
   const descuentoRaw = parseFloat(document.getElementById('ventaDescuento').value) || 0;
   if(!client) return alert('Ingresa el nombre del alumno/cliente.');
   if(montoWithIvaRaw <= 0) return alert('Monto inválido.');
-  const montoWithIva = Number(montoWithIvaRaw.toFixed(2));
+  const montoWithIva = Math.round(montoWithIvaRaw);
   const baseOriginal = Number((montoWithIva / 1.16).toFixed(2));
   const baseAfterDiscount = Number(Math.max(0, (baseOriginal - descuentoRaw)).toFixed(2));
   const iva = Number((baseAfterDiscount * 0.16).toFixed(2));
-  const total = Number((baseAfterDiscount + iva).toFixed(2));
+  const total = Number(Math.round((baseAfterDiscount + iva)));
   // id compra
   const nowD = new Date(); const dd=String(nowD.getDate()).padStart(2,'0'); const mm=String(nowD.getMonth()+1).padStart(2,'0'); const yyyy=nowD.getFullYear(); const hh=String(nowD.getHours()).padStart(2,'0'); const min=String(nowD.getMinutes()).padStart(2,'0'); const ss=String(nowD.getSeconds()).padStart(2,'0');
   const idCompra = `${dd}${mm}${yyyy}-${hh}${min}${ss}`;
@@ -618,7 +622,7 @@ async function registerSale(opts){
 
 function printSaleTicket(sale){
   const ticketHtml = `
-    <div class="ticket" style="width:270px;padding:16px;font-family:Arial,Helvetica,sans-serif;">
+    <div class="ticket" style="width:270px;padding:18px;font-family:Arial,Helvetica,sans-serif;">
       <div style="text-align:center;font-weight:800;font-size:15px">eVocal Studio</div>
       <div style="text-align:center;font-size:12px;margin-top:6px">Comprobante de Pago — ${sale.paymentMethod === 'tarjeta' ? 'Tarjeta' : 'Efectivo'}</div>
       <div class="dots">........................................</div>
@@ -680,12 +684,11 @@ async function printTicket(){
   const now = new Date();
   const p = partsFromDate(now);
   const dayTurnsPath = `years/${p.year}/months/${p.month}/days/${p.day}/turnos`;
-  // fetch today's turns
   try{
     const turnListSnap = await getDocs(collection(db, dayTurnsPath));
     let candidate = null;
-    turnListSnap.docs.forEach(d=>{ const data=d.data(); if(data.status==='closed') candidate = { id: createTurnId(now,data.shift), data, ref:d.ref }; });
-    if(!candidate) turnListSnap.docs.forEach(d=>{ const data=d.data(); if(data.status==='open') candidate = { id: createTurnId(now,data.shift), data, ref:d.ref }; });
+    turnListSnap.docs.forEach(d=>{ const data=d.data(); if(data.status==='closed') candidate = { id:createTurnId(now,data.shift), data, ref:d.ref }; });
+    if(!candidate) turnListSnap.docs.forEach(d=>{ const data=d.data(); if(data.status==='open') candidate = { id:createTurnId(now,data.shift), data, ref:d.ref }; });
     if(!candidate) return alert('No hay turno para imprimir.');
     const turnId = candidate.id;
     const turno = candidate.ref.id;
@@ -709,7 +712,7 @@ async function printTicket(){
       <div class="dots">${dots}</div>
 
       <div style="margin-top:6px; font-weight:700;">
-        ${moves.map(m=>`<div style="display:flex;justify-content:space-between;padding:10px 0;font-weight:700"><div style="max-width:160px;text-align:left">${m.concepto}</div><div style="min-width:90px;text-align:${m.tipo==='ingreso'?'right':'left'}">${m.tipo==='ingreso'? '+' : '-'} ${money(m.monto)}</div></div>`).join('')}
+        ${moves.map(m=>`<div style="display:flex;justify-content:space-between;padding:12px 0;font-weight:700"><div style="max-width:160px;text-align:left">${m.concepto}</div><div style="min-width:90px;text-align:${m.tipo==='ingreso'?'right':'left'}">${m.tipo==='ingreso'? '+' : '-'} ${money(m.monto)}</div></div>`).join('')}
       </div>
 
       <div class="dots">${dots}</div>
@@ -721,7 +724,7 @@ async function printTicket(){
       <div class="dots">${dots}</div>
       <div style="font-size:13px;font-weight:800">Horas abiertas de la caja: <strong>${hoursText}</strong></div>
 
-      <div style="margin-top:28px;text-align:center">
+      <div style="margin-top:36px;text-align:center">
         <div class="signature-line"></div>
         <div class="centered-caption">Entregado por</div>
       </div>
@@ -797,7 +800,7 @@ async function resetGeneral(){
   if(!pin) return; if(pin !== '1417') return alert('PIN maestro inválido.');
   if(!confirm('Confirmar Reset General: se BORRARÁN movimientos, ventas y cierres. Esta acción NO puede deshacerse.')) return;
   try{
-    // Delete by iterating the tree (careful with large data)
+    // iterate tree and remove documents but keep users collection
     const yearsSnap = await getDocs(collection(db,'years'));
     for(const ydoc of yearsSnap.docs){
       const monthsSnap = await getDocs(collection(db, `years/${ydoc.id}/months`));
@@ -847,7 +850,6 @@ async function exportDailyReport(){
     if(!closed) return alert('No hay turnos disponibles.');
     turnDoc = closed;
   }
-  // get movements
   const movSnap = await getDocs(collection(turnDoc.ref, 'movimientos'));
   const moves = movSnap.docs.map(d=>d.data());
   const ingresos = moves.filter(m=>m.tipo==='ingreso').reduce((s,m)=>s+m.monto,0);
